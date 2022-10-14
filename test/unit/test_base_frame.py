@@ -5,8 +5,8 @@ from unittest import TestCase
 import numpy as np
 import pandas as pd
 
-from src.base_frame import BaseFrame
-from src.column import Column
+from pandantic import BaseFrame
+from pandantic import Column
 
 
 class FooBarFrame(BaseFrame):

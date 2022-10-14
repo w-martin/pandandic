@@ -1,0 +1,21 @@
+[tool.poetry]
+name = "pandandic"
+version = "0.1.0"
+description = "A typed dataframe helper"
+license = "MIT"
+authors = ["Will Martin <will.st4@gmail.com>"]
+readme = "README.md"
+repository = "https://github.com/w-martin/pandandic"
+packages = [{ include = "src" }]
+
+[tool.poetry.dependencies]
+python = "^3.8"
+pandas = "^1.4.4"
+typing_extensions = { version = "^4.0.0", python = "<3.11" }
+
+[tool.poetry.group.test.dependencies]
+nose2 = "^0.12.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
