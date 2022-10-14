@@ -8,9 +8,6 @@ phases:
       - export PATH=/root/.local/bin:$PATH
       - python3 -m venv env; source env/bin/activate
       - poetry install --with test --sync
-  pre_build:
-    commands:
-      - aws codeartifact login --tool pip --domain w-martin --repository codeartifact
   build:
     commands:
       - poetry run python3 -m nose2 -s test -t src
