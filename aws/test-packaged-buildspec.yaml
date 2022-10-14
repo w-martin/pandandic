@@ -8,7 +8,7 @@ phases:
       - export PATH=/root/.local/bin:$PATH
       - poetry build
       - python3 -m venv env; source env/bin/activate
-      - pip install nose2 dist/*.whl --user
+      - python3 -m pip install nose2 dist/*.whl
   build:
     commands:
       - cd test
