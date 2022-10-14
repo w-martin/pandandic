@@ -1,14 +1,16 @@
 version: 0.2
 
 phases:
+  install:
+      - pip3 install awscli --upgrade --user
+      - curl -sSL https://install.python-poetry.org | POETRY_VERSION=1.2.1 python3 -
+      - export PATH=/root/.local/bin:PATH
+      - python3 -m venv env; source env/bin/activate
+      - poetry install --with test --sync
+      - poetry run python3 -m nose2 -s test -t src
   pre_build:
     commands:
-      - pip3 install awscli --upgrade --user
       - aws codeartifact login --tool pip --domain w-martin --repository codeartifact
-  install_requirements:
+  build:
     commands:
-      - python3 -m venv env; source env/bin/activate
-      - export PATH=/root/.local/bin:PATH
-      - curl -sSL https://install.python-poetry.org | POETRY_VERSION=1.2.1 python3 -
-      - poetry install --with test --sync
       - poetry run python3 -m nose2 -s test -t src
