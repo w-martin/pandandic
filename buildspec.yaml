@@ -1,9 +1,12 @@
-pre_build:
-  commands:
-    - pip3 install awscli --upgrade --user
-    - aws codeartifact login --tool pip --domain w-martin --repository codeartifact
-build:
-  commands:
-    - python3 -m venv env; source active env/bin/activate
-    - poetry install --with test --sync
-    - poetry run python3 -m nose2 -s test -t src
+version: 0.2
+
+phases:
+  pre_build:
+    commands:
+      - pip3 install awscli --upgrade --user
+      - aws codeartifact login --tool pip --domain w-martin --repository codeartifact
+  build:
+    commands:
+      - python3 -m venv env; source active env/bin/activate
+      - poetry install --with test --sync
+      - poetry run python3 -m nose2 -s test -t src
