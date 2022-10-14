@@ -2,11 +2,11 @@
 name = "pandandic"
 version = "0.0.0"
 description = "A typed dataframe helper"
-license = "MIT"
+license = "LICENCE.md"
 authors = ["Will Martin <will.st4@gmail.com>"]
 readme = "README.md"
 repository = "https://github.com/w-martin/pandandic"
-packages = [{ include = "src" }]
+packages = [{ include = "pandantic", from = "src" }]
 
 [tool.poetry.dependencies]
 python = "^3.7"

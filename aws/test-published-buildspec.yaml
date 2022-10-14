@@ -9,4 +9,4 @@ phases:
   build:
     commands:
       - cd test
-      - poetry run python3 -m nose2 -s . -t .
+      - python3 -m nose2 -s . -t .
