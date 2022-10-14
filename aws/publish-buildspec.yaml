@@ -6,7 +6,6 @@ phases:
       - pip3 install awscli --upgrade --user
       - curl -sSL https://install.python-poetry.org | POETRY_VERSION=1.2.1 python3 -
       - export PATH=/root/.local/bin:$PATH
-      - poetry config pypi-token.pypi $PYPI_TOKEN
   build:
     commands:
       - poetry publish --build
