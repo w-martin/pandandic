@@ -9,7 +9,7 @@ class FooFrame(BaseFrame):
     bar = Column(type=int)
 
 
-data = FooFrame().from_csv(Path(__file__).parent.joinpath("foo.csv").as_posix())
+data = FooFrame().read_csv(Path(__file__).parent.joinpath("foo.csv").as_posix())
 pd.testing.assert_frame_equal(
     pd.DataFrame(
         columns=["foo", "bar"],

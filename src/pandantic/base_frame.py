@@ -1,4 +1,5 @@
 from copy import deepcopy
+from datetime import datetime, date
 from typing import Dict
 
 import pandas as pd
@@ -14,6 +15,8 @@ from .column import Column
 
 
 class BaseFrame:
+
+    _typed_columns: Dict[str, Column] = None
 
     def __init__(self):
         self.validate = True
@@ -32,18 +35,21 @@ class BaseFrame:
         self.allowed_extra_columns = allowed_extra_columns
         return self
 
-    def from_csv(self, *args, **kwargs) -> DataFrame:
+    def read_csv(self, *args, **kwargs) -> DataFrame:
         if self.enforce_typed_columns:
             typed_columns = list(self.get_typed_columns().keys())
             if self.allowed_extra_columns:
-                columns = self.peek_columns_from_csv(*args, **kwargs)
+                columns = self.read_csv_columns(*args, **kwargs)
                 typed_columns = list(set(columns).union(typed_columns))
             kwargs["usecols"] = typed_columns
+        if self.validate:
+            kwargs["dtype"] = dict(map(lambda tc: (tc[0], tc[1].type), filter(lambda tc: tc[1].type not in (datetime, "datetime", date, "date"), self.get_typed_columns().items())))
+            kwargs["parse_dates"] = list(map(lambda tc: tc[0], filter(lambda tc: tc[1].type in (datetime, "datetime", date, "date"), self.get_typed_columns().items())))
         df = pd.read_csv(*args, **kwargs)
         return df
 
     @staticmethod
-    def peek_columns_from_csv(*args, **kwargs) -> pd.Index:
+    def read_csv_columns(*args, **kwargs) -> pd.Index:
         header_kwargs = deepcopy(kwargs)
         header_kwargs["nrows"] = 0
         if "usecols" in header_kwargs:
@@ -57,4 +63,6 @@ class BaseFrame:
 
     @classmethod
     def get_typed_columns(cls) -> Dict[str, Column]:
-        return dict(filter(lambda kv: isinstance(kv[1], Column), cls.__dict__.items()))
+        if cls._typed_columns is None:
+            cls._typed_columns = dict(filter(lambda kv: isinstance(kv[1], Column), cls.__dict__.items()))
+        return cls._typed_columns
