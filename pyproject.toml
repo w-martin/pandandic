@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "pandandic"
-version = "0.0.1a0"
+version = "0.0.1a1"
 description = "A typed dataframe helper"
 license = "LICENCE.md"
 authors = ["Will Martin <will.st4@gmail.com>"]
