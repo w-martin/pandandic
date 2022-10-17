@@ -2,7 +2,7 @@ version: 0.2
 
 env:
   secrets-manager:
-    POETRY_PYPI_TOKEN_PYPI: "pandantic/pypi:POETRY_PYPI_TOKEN_PYPI"
+    POETRY_PYPI_TOKEN_PYPI: "pandandic/pypi:POETRY_PYPI_TOKEN_PYPI"
 
 phases:
   install:

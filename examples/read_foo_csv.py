@@ -1,7 +1,7 @@
 from pathlib import Path
 
 import pandas as pd
-from pandantic import BaseFrame, Column
+from pandandic import BaseFrame, Column
 
 
 class FooFrame(BaseFrame):
