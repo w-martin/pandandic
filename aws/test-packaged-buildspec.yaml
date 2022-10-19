@@ -8,8 +8,8 @@ phases:
       - export PATH=/root/.local/bin:$PATH
       - poetry build
       - python3 -m venv env; source env/bin/activate
-      - for i in dist/*.whl ; do python3 -m pip install $i[extras] ; done
       - poetry install --only test
+      - for i in dist/*.whl ; do python3 -m pip install $i[extras] ; done
   build:
     commands:
       - cd test
