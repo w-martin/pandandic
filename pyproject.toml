@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "pandandic"
-version = "0.0.1a1"
+version = "0.0.1a2"
 description = "A typed dataframe helper"
 license = "LICENCE.md"
 authors = ["Will Martin <will.st4@gmail.com>"]
@@ -9,12 +9,18 @@ repository = "https://github.com/w-martin/pandandic"
 packages = [{ include = "pandandic", from = "src" }]
 
 [tool.poetry.dependencies]
-python = "^3.7"
-pandas = "^1"
+python = "^3.8"
+pandas = "^1.2"
 typing_extensions = { version = "^4", python = "<3.11" }
+pyarrow = { version = "^9.0.0", optional = true }
+
+[tool.poetry.extras]
+parquet = ["pyarrow"]
 
 [tool.poetry.group.test.dependencies]
 nose2 = "^0.12"
+xlsxwriter = "^3.0.3"
+openpyxl = "^3.0.10"
 
 [build-system]
 requires = ["poetry-core"]

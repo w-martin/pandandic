@@ -1,6 +1,7 @@
 from copy import deepcopy
 from datetime import datetime, date
-from typing import Dict
+from numbers import Number
+from typing import Dict, Tuple, Any
 
 import pandas as pd
 from pandas import DataFrame
@@ -15,7 +16,6 @@ from .column import Column
 
 
 class BaseFrame:
-
     _typed_columns: Dict[str, Column] = None
 
     def __init__(self):
@@ -42,14 +42,64 @@ class BaseFrame:
                 columns = self.read_csv_columns(*args, **kwargs)
                 typed_columns = list(set(columns).union(typed_columns))
             kwargs["usecols"] = typed_columns
-        if self.validate:
-            kwargs["dtype"] = dict(map(lambda tc: (tc[0], tc[1].type), filter(lambda tc: tc[1].type not in (datetime, "datetime", date, "date"), self.get_typed_columns().items())))
-            kwargs["parse_dates"] = list(map(lambda tc: tc[0], filter(lambda tc: tc[1].type in (datetime, "datetime", date, "date"), self.get_typed_columns().items())))
+        self._apply_validation(kwargs)
         df = pd.read_csv(*args, **kwargs)
         return df
 
+    def read_excel(self, *args, **kwargs) -> DataFrame:
+        if self.enforce_typed_columns:
+            typed_columns = list(self.get_typed_columns().keys())
+            if self.allowed_extra_columns:
+                columns = self.read_excel_columns(*args, **kwargs)
+                typed_columns = list(set(columns).union(typed_columns))
+            kwargs["usecols"] = typed_columns
+        self._apply_validation(kwargs)
+        df = pd.read_excel(*args, **kwargs)
+        return df
+
+    def read_parquet(self, *args, **kwargs) -> DataFrame:
+        if self.enforce_typed_columns:
+            typed_columns = list(self.get_typed_columns().keys())
+            if self.allowed_extra_columns:
+                columns = self.read_parquet_columns(*args, **kwargs)
+                typed_columns = list(set(columns).union(typed_columns))
+            kwargs["columns"] = typed_columns
+        df = pd.read_parquet(*args, **kwargs)
+        for key, column in filter(self._type_is_castable, self.get_typed_columns().items()):
+            df.loc[:, key] = df.loc[:, key].astype(column.type)
+        return df
+
+    def _apply_validation(self, kwargs):
+        if self.validate:
+            kwargs["dtype"] = dict(
+                map(lambda key_column_tuple: (key_column_tuple[0], key_column_tuple[1].type),
+                    filter(self._type_is_not_date,
+                           filter(self._type_is_not_any,
+                                  self.get_typed_columns().items()))))
+            kwargs["parse_dates"] = list(
+                map(lambda key_column_tuple: key_column_tuple[0],
+                    filter(self._type_is_date, self.get_typed_columns().items())))
+
     @staticmethod
-    def read_csv_columns(*args, **kwargs) -> pd.Index:
+    def _type_is_castable(key_column_tuple: Tuple[str, Column]) -> bool:
+        return BaseFrame._type_is_not_any(key_column_tuple) and BaseFrame._type_is_not_date(key_column_tuple)
+
+    @staticmethod
+    def _type_is_not_any(key_column_tuple: Tuple[str, Column]) -> bool:
+        _, column = key_column_tuple
+        return column.type is not Any
+
+    @staticmethod
+    def _type_is_date(key_column_tuple: Tuple[str, Column]) -> bool:
+        _, column = key_column_tuple
+        return column.type in (datetime, "datetime", date, "date")
+
+    @staticmethod
+    def _type_is_not_date(key_column_tuple: Tuple[str, Column]) -> bool:
+        return not BaseFrame._type_is_date(key_column_tuple)
+
+    @staticmethod
+    def read_csv_columns(*args, **kwargs) -> list:
         header_kwargs = deepcopy(kwargs)
         header_kwargs["nrows"] = 0
         if "usecols" in header_kwargs:
@@ -59,6 +109,26 @@ class BaseFrame:
             args[0].seek(0)
         except AttributeError:
             pass
+        return columns.tolist()
+
+    @staticmethod
+    def read_excel_columns(*args, **kwargs) -> list:
+        header_kwargs = deepcopy(kwargs)
+        header_kwargs["nrows"] = 0
+        if "usecols" in header_kwargs:
+            del header_kwargs["usecols"]
+        columns = pd.read_excel(*args, **header_kwargs).columns
+        try:
+            args[0].seek(0)
+        except AttributeError:
+            pass
+        return columns.tolist()
+
+    @staticmethod
+    def read_parquet_columns(*args, **kwargs) -> list:
+        from pyarrow.parquet import ParquetFile
+        pq_file = ParquetFile(args[0])
+        columns = pq_file.metadata.schema.names
         return columns
 
     @classmethod
