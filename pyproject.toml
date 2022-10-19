@@ -16,6 +16,8 @@ pyarrow = { version = "^9.0.0", optional = true }
 
 [tool.poetry.extras]
 parquet = ["pyarrow"]
+extras = ["pyarrow"]
+all = ["pyarrow"]
 
 [tool.poetry.group.test.dependencies]
 nose2 = "^0.12"
