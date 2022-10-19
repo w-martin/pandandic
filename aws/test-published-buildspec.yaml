@@ -4,8 +4,11 @@ phases:
   install:
     commands:
       - pip3 install awscli pip --upgrade --user
+      - curl -sSL https://install.python-poetry.org | POETRY_VERSION=1.2.1 python3 -
+      - export PATH=/root/.local/bin:$PATH
       - python3 -m venv env; source env/bin/activate
-      - python3 -m pip install nose2 pandandic[parquet]
+      - python3 -m pip install nose2 pandandic[extras]
+      - poetry install --only test
   build:
     commands:
       - cd test

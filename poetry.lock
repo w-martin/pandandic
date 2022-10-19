@@ -60,8 +60,8 @@ test = ["hypothesis (>=5.5.3)", "pytest (>=6.0)", "pytest-xdist (>=1.31)"]
 name = "pyarrow"
 version = "9.0.0"
 description = "Python library for Apache Arrow"
-category = "dev"
-optional = false
+category = "main"
+optional = true
 python-versions = ">=3.7"
 
 [package.dependencies]
@@ -110,10 +110,15 @@ category = "dev"
 optional = false
 python-versions = ">=3.4"
 
+[extras]
+all = ["pyarrow"]
+extras = ["pyarrow"]
+parquet = ["pyarrow"]
+
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.8"
-content-hash = "80fbdcfd3d43929477e570a8c39b8d6a87962731adbdd2294ea372b0fc71a421"
+content-hash = "939c1665d5e0b90d29513825b2a2a26f869204c11c3a45654ec53d478aae6ba4"
 
 [metadata.files]
 et-xmlfile = [

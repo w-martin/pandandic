@@ -19,6 +19,9 @@ parquet = ["pyarrow"]
 extras = ["pyarrow"]
 all = ["pyarrow"]
 
+[tool.poetry.group.test]
+optional = true
+
 [tool.poetry.group.test.dependencies]
 nose2 = "^0.12"
 xlsxwriter = "^3.0.3"
