@@ -7,6 +7,20 @@ optional = false
 python-versions = ">=3.6"
 
 [[package]]
+name = "fastavro"
+version = "1.5.1"
+description = "Fast read/write of AVRO files"
+category = "main"
+optional = true
+python-versions = ">=3.7"
+
+[package.extras]
+codecs = ["lz4", "python-snappy", "zstandard"]
+lz4 = ["lz4"]
+snappy = ["python-snappy"]
+zstandard = ["zstandard"]
+
+[[package]]
 name = "nose2"
 version = "0.12.0"
 description = "unittest2 with plugins, the successor to nose"
@@ -55,6 +69,22 @@ pytz = ">=2020.1"
 
 [package.extras]
 test = ["hypothesis (>=5.5.3)", "pytest (>=6.0)", "pytest-xdist (>=1.31)"]
+
+[[package]]
+name = "pandavro"
+version = "1.7.1"
+description = "The interface between Avro and pandas DataFrame"
+category = "main"
+optional = true
+python-versions = ">=3.6.1"
+
+[package.dependencies]
+fastavro = "1.5.1"
+numpy = ">=1.15.4"
+pandas = ">=1.1"
+
+[package.extras]
+tests = ["pytest (==7.1.2)"]
 
 [[package]]
 name = "pyarrow"
@@ -111,19 +141,35 @@ optional = false
 python-versions = ">=3.4"
 
 [extras]
-all = ["pyarrow"]
-extras = ["pyarrow"]
+all = ["pandavro", "pyarrow"]
+avro = ["pandavro"]
+extras = ["pandavro", "pyarrow"]
 parquet = ["pyarrow"]
 
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.8"
-content-hash = "939c1665d5e0b90d29513825b2a2a26f869204c11c3a45654ec53d478aae6ba4"
+content-hash = "34a05a6fb3399192bed34b5108df4a4898412eb43782cbb2a61ddc1facfc0603"
 
 [metadata.files]
 et-xmlfile = [
     {file = "et_xmlfile-1.1.0-py3-none-any.whl", hash = "sha256:a2ba85d1d6a74ef63837eed693bcb89c3f752169b0e3e7ae5b16ca5e1b3deada"},
     {file = "et_xmlfile-1.1.0.tar.gz", hash = "sha256:8eb9e2bc2f8c97e37a2dc85a09ecdcdec9d8a396530a6d5a33b30b9a92da0c5c"},
+]
+fastavro = [
+    {file = "fastavro-1.5.1-cp310-cp310-macosx_10_14_x86_64.whl", hash = "sha256:920d170560198741fa196a62a97c220173339766e6c14369c5c68bfe8cdafa25"},
+    {file = "fastavro-1.5.1-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:0b00b1711511981c4e2dd4a27ba5ae20897fe41ec7ab52eda868626d445081e5"},
+    {file = "fastavro-1.5.1-cp310-cp310-win_amd64.whl", hash = "sha256:04438b592980633ccf5d1de7798480a634ca581ae7575ab7671ba16773b6b428"},
+    {file = "fastavro-1.5.1-cp37-cp37m-macosx_10_15_x86_64.whl", hash = "sha256:0ab92ab744f9172da0791bfad0495d785c7c4f5a68924e3c6c6b39b78b044b11"},
+    {file = "fastavro-1.5.1-cp37-cp37m-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:84ca1a60cecd710ead076585b56b954ab3e6e001d8e7384cb4ed20019b29e7a9"},
+    {file = "fastavro-1.5.1-cp37-cp37m-win_amd64.whl", hash = "sha256:b5ff657c0d48553492d8356a30b6112fcc6db69adce6bba31135272bc9d87d82"},
+    {file = "fastavro-1.5.1-cp38-cp38-macosx_10_15_x86_64.whl", hash = "sha256:0f1ed38042a2a90a7a5da170006459e73134f4c14f4fda9ebba99017adb1b14c"},
+    {file = "fastavro-1.5.1-cp38-cp38-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:df83ebdd7b67b52a37bc84c6e25f7056f756fb216c5c8e5c95ae1673fcbb6015"},
+    {file = "fastavro-1.5.1-cp38-cp38-win_amd64.whl", hash = "sha256:0053347a92add6f448837ff00099b0a7200ec5dd58e173743d856d65d0574ddb"},
+    {file = "fastavro-1.5.1-cp39-cp39-macosx_10_15_x86_64.whl", hash = "sha256:6b4f8551ccbe0c9b19867b8c93029e8cfe8fa3757245caae6228f35ef0656371"},
+    {file = "fastavro-1.5.1-cp39-cp39-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:ff241b5ce36df7af7461d001ca98fec6eacd56c4754c8ac7718e2d4b7b690a82"},
+    {file = "fastavro-1.5.1-cp39-cp39-win_amd64.whl", hash = "sha256:fb3491c88e7962a6b820548ddd12b9c0f6296ebd2385a3021296f14bfe35189a"},
+    {file = "fastavro-1.5.1.tar.gz", hash = "sha256:0815da740ced2261f90b0ddbb5bbe645e9c893c8f00e5dc8d30b8ec20f3c7fa9"},
 ]
 nose2 = [
     {file = "nose2-0.12.0-py2.py3-none-any.whl", hash = "sha256:da7eb5e3cbe2abb693a053e17b4fbefca98ea9ea79fc729b0b0f41e8b4196304"},
@@ -191,6 +237,9 @@ pandas = [
     {file = "pandas-1.5.1-cp39-cp39-win32.whl", hash = "sha256:05c527c64ee02a47a24031c880ee0ded05af0623163494173204c5b72ddce658"},
     {file = "pandas-1.5.1-cp39-cp39-win_amd64.whl", hash = "sha256:6bb391659a747cf4f181a227c3e64b6d197100d53da98dcd766cc158bdd9ec68"},
     {file = "pandas-1.5.1.tar.gz", hash = "sha256:249cec5f2a5b22096440bd85c33106b6102e0672204abd2d5c014106459804ee"},
+]
+pandavro = [
+    {file = "pandavro-1.7.1.tar.gz", hash = "sha256:f71d50a4bc0706788e9e2721600778451dd1d19c7a52fe3aece4b4d9f93ebccf"},
 ]
 pyarrow = [
     {file = "pyarrow-9.0.0-cp310-cp310-macosx_10_13_universal2.whl", hash = "sha256:767cafb14278165ad539a2918c14c1b73cf20689747c21375c38e3fe62884902"},

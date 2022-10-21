@@ -1,11 +1,10 @@
+import sys
 from copy import deepcopy
 from datetime import datetime, date
-from numbers import Number
 from typing import Dict, Tuple, Any
 
 import pandas as pd
 from pandas import DataFrame
-import sys
 
 if sys.version_info >= (3, 11):
     from typing import Self
@@ -65,6 +64,19 @@ class BaseFrame:
                 typed_columns = list(set(columns).union(typed_columns))
             kwargs["columns"] = typed_columns
         df = pd.read_parquet(*args, **kwargs)
+        for key, column in filter(self._type_is_castable, self.get_typed_columns().items()):
+            df.loc[:, key] = df.loc[:, key].astype(column.type)
+        return df
+
+    def read_avro(self, *args, **kwargs) -> DataFrame:
+        from pandavro import read_avro
+        if self.enforce_typed_columns:
+            typed_columns = list(self.get_typed_columns().keys())
+            if self.allowed_extra_columns:
+                columns = self.read_avro_columns(*args, **kwargs)
+                typed_columns = list(set(columns).union(typed_columns))
+            kwargs["columns"] = typed_columns
+        df = read_avro(*args, **kwargs)
         for key, column in filter(self._type_is_castable, self.get_typed_columns().items()):
             df.loc[:, key] = df.loc[:, key].astype(column.type)
         return df
@@ -130,6 +142,19 @@ class BaseFrame:
         pq_file = ParquetFile(args[0])
         columns = pq_file.metadata.schema.names
         return columns
+
+    @staticmethod
+    def read_avro_columns(filepath_or_buffer, *args, **kwargs) -> list:
+        import fastavro
+        if isinstance(filepath_or_buffer, str):
+            with open(filepath_or_buffer, "rb") as f:
+                reader = fastavro.reader(f)
+                row = next(reader, dict())
+        else:
+            reader = fastavro.reader(filepath_or_buffer)
+            row = next(reader, dict())
+            filepath_or_buffer.seek(0)
+        return list(row.keys())
 
     @classmethod
     def get_typed_columns(cls) -> Dict[str, Column]:
