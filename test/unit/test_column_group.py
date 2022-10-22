@@ -1,13 +1,13 @@
 from unittest import TestCase
 
-from pandandic import Column
+from pandandic import ColumnGroup
 
 
-class TestColumn(TestCase):
+class TestColumnGroup(TestCase):
 
     def test_should_implicitly_set_name_when_class_attribute(self):
         # act
         class Foo:
-            bar = Column(type=str)
+            bar = ColumnGroup(type=str, members=[])
         # assert
         self.assertEqual("bar", Foo.bar.name)
