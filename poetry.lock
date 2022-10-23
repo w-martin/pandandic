@@ -29,7 +29,7 @@ optional = false
 python-versions = "*"
 
 [package.extras]
-coverage_plugin = ["coverage"]
+coverage-plugin = ["coverage"]
 dev = ["Sphinx", "mock", "sphinx-issues", "sphinx-rtd-theme"]
 
 [[package]]

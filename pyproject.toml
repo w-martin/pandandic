@@ -1,8 +1,8 @@
 [tool.poetry]
 name = "pandandic"
-version = "0.1.0"
+version = "0.1.1a0"
 description = "A typed dataframe helper"
-license = "LICENCE.md"
+license = "MIT"
 authors = ["Will Martin <will.st4@gmail.com>"]
 readme = "README.md"
 repository = "https://github.com/w-martin/pandandic"
