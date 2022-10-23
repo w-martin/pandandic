@@ -1,6 +1,5 @@
 from pathlib import Path
 
-import pandas as pd
 from pandandic import BaseFrame, Column
 
 

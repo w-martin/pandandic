@@ -1,5 +1,5 @@
 date,temperature-0,temperature-1,temperature-2,temperature-3,door-open-0,door-open-1,door-open-2,ref,comment
-01/01/2001,23,22,21,20,False,False,False,True,75,first observation
-02/01/2001,24,23,22,21,False,True,False,True,76,
-03/01/2001,25,24,23,22,True,False,False,False,77,left the door open
-04/01/2001,26,25,24,23,False,False,True,True,78,final observation
+01/01/2001,23,22,21,20,False,False,False,75,first observation
+02/01/2001,24,23,22,21,False,True,False,76,
+03/01/2001,25,24,23,22,True,False,False,77,left the door open
+04/01/2001,26,25,24,23,False,False,True,78,final observation

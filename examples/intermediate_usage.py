@@ -1,7 +1,7 @@
 import datetime
 from pathlib import Path
 
-from pandandic import BaseFrame, Column, ColumnGroup
+from pandandic import BaseFrame, Column, ColumnSet
 
 
 class TemperatureFrame(BaseFrame):
@@ -14,7 +14,7 @@ class TemperatureFrame(BaseFrame):
     A column group can be accessed like an attribute to provide a DataFrame view.
     """
     date = Column(type=datetime.date)
-    temperature = ColumnGroup(type=float, members=["temperature-\d+"], regex=True)
+    temperature = ColumnSet(type=float, members=["temperature-\d+"], regex=True)
 
 
 df = TemperatureFrame().read_csv(Path(__file__).parent.joinpath("intermediate.csv").as_posix())

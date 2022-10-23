@@ -9,7 +9,7 @@ import numpy as np
 import pandas as pd
 from pandas import DataFrame
 
-from pandandic import BaseFrame, ColumnGroup
+from pandandic import BaseFrame, ColumnSet
 from pandandic import Column
 from pandandic.column_group_exception import ColumnGroupException
 
@@ -23,7 +23,7 @@ class FooBarFrame(BaseFrame):
 class SupportedFileType:
     read_method: Callable
     save_method: Callable
-    filename: str
+    filename: Callable
 
 
 def to_avro(df, filename, *args, **kwargs):
@@ -48,15 +48,36 @@ def to_avro(df, filename, *args, **kwargs):
     to_avro(filename, df, *args, schema=schema, **kwargs)
 
 
+class DfStore:
+    def __init__(self):
+        self._df_in_flight = None
+
+    def get_df_in_flight(self):
+        return self._df_in_flight
+
+    def set_df_in_flight(self, df):
+        self._df_in_flight = df
+
+
+store = DfStore()
+
+
+def to_df(df, *args, **kwargs):
+    store.set_df_in_flight(df)
+
+
 class TestBaseFrame(TestCase):
     supported_file_types = {
-        "csv": SupportedFileType(read_method=BaseFrame.read_csv, save_method=DataFrame.to_csv, filename="tmp.csv"),
+        "csv": SupportedFileType(read_method=BaseFrame.read_csv, save_method=DataFrame.to_csv,
+                                 filename=lambda: "tmp.csv"),
         "excel": SupportedFileType(read_method=BaseFrame.read_excel, save_method=DataFrame.to_excel,
-                                   filename="tmp.xlsx"),
+                                   filename=lambda: "tmp.xlsx"),
         "parquet": SupportedFileType(read_method=BaseFrame.read_parquet, save_method=DataFrame.to_parquet,
-                                     filename="tmp.parquet"),
+                                     filename=lambda: "tmp.parquet"),
         "avro": SupportedFileType(read_method=BaseFrame.read_avro, save_method=to_avro,
-                                  filename="tmp.avro")
+                                  filename=lambda: "tmp.avro"),
+        "df": SupportedFileType(read_method=BaseFrame.from_df, save_method=to_df,
+                                filename=store.get_df_in_flight)
     }
 
     def setUp(self) -> None:
@@ -64,8 +85,8 @@ class TestBaseFrame(TestCase):
 
     def tearDown(self) -> None:
         for supported_filetype in self.supported_file_types.values():
-            if os.path.exists(supported_filetype.filename):
-                os.remove(supported_filetype.filename)
+            if isinstance(supported_filetype.filename(), str) and os.path.exists(supported_filetype.filename()):
+                os.remove(supported_filetype.filename())
 
     def test_should_get_typed_columns(self):
         # arrange
@@ -75,7 +96,7 @@ class TestBaseFrame(TestCase):
             "bar": Column(type=int)
         }
         # act
-        actual = sut.get_typed_columns()
+        actual = sut._get_column_map()
         # assert
         self.assertEqual(expected, actual)
 
@@ -85,9 +106,9 @@ class TestBaseFrame(TestCase):
         sut = FooBarFrame()
         for name, file_type in self.supported_file_types.items():
             with self.subTest(name):
-                file_type.save_method(expected, file_type.filename, index=False)
+                file_type.save_method(expected, file_type.filename(), index=False)
                 # act
-                actual = file_type.read_method(sut, file_type.filename).to_df()
+                actual = file_type.read_method(sut, file_type.filename()).to_df()
                 # assert
                 pd.testing.assert_frame_equal(expected, actual)
 
@@ -98,9 +119,9 @@ class TestBaseFrame(TestCase):
         sut = FooBarFrame()
         for name, file_type in self.supported_file_types.items():
             with self.subTest(name):
-                file_type.save_method(data, file_type.filename, index=False)
+                file_type.save_method(data, file_type.filename(), index=False)
                 # act
-                actual = file_type.read_method(sut, file_type.filename).to_df()
+                actual = file_type.read_method(sut, file_type.filename()).to_df()
                 # assert
                 pd.testing.assert_frame_equal(expected, actual)
 
@@ -110,9 +131,9 @@ class TestBaseFrame(TestCase):
         sut = FooBarFrame().with_extra_columns_allowed(True)
         for name, file_type in self.supported_file_types.items():
             with self.subTest(name):
-                file_type.save_method(expected, file_type.filename, index=False)
+                file_type.save_method(expected, file_type.filename(), index=False)
                 # act
-                actual = file_type.read_method(sut, file_type.filename).to_df()
+                actual = file_type.read_method(sut, file_type.filename()).to_df()
                 # assert
                 columns = list(set(expected.columns.tolist()).union(actual.columns.tolist()))
                 pd.testing.assert_frame_equal(expected[columns], actual[columns])
@@ -136,10 +157,10 @@ class TestBaseFrame(TestCase):
 
         for name, file_type in self.supported_file_types.items():
             with self.subTest(name):
-                file_type.save_method(data, file_type.filename, index=False)
+                file_type.save_method(data, file_type.filename(), index=False)
                 expected = data
                 # act
-                actual = file_type.read_method(sut, file_type.filename).to_df()
+                actual = file_type.read_method(sut, file_type.filename()).to_df()
                 # assert
                 if str(actual["datetimes"].dtype) == "datetime64[ns, UTC]":
                     expected = data.copy()
@@ -153,11 +174,11 @@ class TestBaseFrame(TestCase):
         sut = FooBarFrame().with_enforced_types()
         for name, file_type in self.supported_file_types.items():
             with self.subTest(name):
-                file_type.save_method(data, file_type.filename, index=False)
+                file_type.save_method(data, file_type.filename(), index=False)
                 # assert
                 with self.assertRaises(ValueError):
                     # act
-                    file_type.read_method(sut, file_type.filename)
+                    file_type.read_method(sut, file_type.filename())
 
     def test_should_allow_any_dtype(self):
         # arrange
@@ -173,9 +194,9 @@ class TestBaseFrame(TestCase):
 
         for name, file_type in self.supported_file_types.items():
             with self.subTest(name):
-                file_type.save_method(data, file_type.filename, index=False)
+                file_type.save_method(data, file_type.filename(), index=False)
                 # act
-                actual = file_type.read_method(sut, file_type.filename).to_df()
+                actual = file_type.read_method(sut, file_type.filename()).to_df()
                 # assert
                 pd.testing.assert_series_equal(data.dtypes, actual.dtypes)
                 actual.loc[:, "bar"] = actual.loc[:, "bar"].astype(float)
@@ -184,18 +205,18 @@ class TestBaseFrame(TestCase):
     def test_should_fetch_exact_column_groups(self):
         # arrange
         class GroupFrame(BaseFrame):
-            foo = ColumnGroup(type=float, members=["foo-0", "foo-1"])
-            bar = ColumnGroup(type=str, members=["bar", "bartoo"])
+            foo = ColumnSet(type=float, members=["foo-0", "foo-1"])
+            bar = ColumnSet(type=str, members=["bar", "bartoo"])
 
         expected = pd.DataFrame(columns=["foo-0", "foo-1", "bar", "bartoo"],
-                            data=[[2.2, 2.1, "a", "b"], [3.2, 3.1, "c", "d"]])
+                                data=[[2.2, 2.1, "a", "b"], [3.2, 3.1, "c", "d"]])
         sut = GroupFrame()
 
         for name, file_type in self.supported_file_types.items():
             with self.subTest(name):
-                file_type.save_method(expected, file_type.filename, index=False)
+                file_type.save_method(expected, file_type.filename(), index=False)
                 # act
-                result = file_type.read_method(sut, file_type.filename)
+                result = file_type.read_method(sut, file_type.filename())
                 actual = result.to_df()
                 # assert
                 pd.testing.assert_frame_equal(expected, actual)
@@ -205,18 +226,18 @@ class TestBaseFrame(TestCase):
     def test_should_fetch_regex_column_groups(self):
         # arrange
         class GroupFrame(BaseFrame):
-            foo = ColumnGroup(type=float, members=["foo-\d+"], regex=True)
-            bar = ColumnGroup(type=str, members=["bar*"], regex=True)
+            foo = ColumnSet(type=float, members=["foo-\d+"], regex=True)
+            bar = ColumnSet(type=str, members=["bar*"], regex=True)
 
         expected = pd.DataFrame(columns=["foo-0", "foo-1", "bar", "bartoo"],
-                            data=[[2.2, 2.1, "a", "b"], [3.2, 3.1, "c", "d"]])
+                                data=[[2.2, 2.1, "a", "b"], [3.2, 3.1, "c", "d"]])
         sut = GroupFrame()
 
         for name, file_type in self.supported_file_types.items():
             with self.subTest(name):
-                file_type.save_method(expected, file_type.filename, index=False)
+                file_type.save_method(expected, file_type.filename(), index=False)
                 # act
-                result = file_type.read_method(sut, file_type.filename)
+                result = file_type.read_method(sut, file_type.filename())
                 actual = result.to_df()
                 # assert
                 pd.testing.assert_frame_equal(expected, actual)
@@ -226,36 +247,36 @@ class TestBaseFrame(TestCase):
     def test_should_raise_on_conflicting_column_groups(self):
         # arrange
         class GroupFrame(BaseFrame):
-            foo = ColumnGroup(type=float, members=["foo-\d+"], regex=True)
-            bar = ColumnGroup(type=str, members=["bar", "bartoo", "foo-0"], regex=False)
+            foo = ColumnSet(type=float, members=["foo-\d+"], regex=True)
+            bar = ColumnSet(type=str, members=["bar", "bartoo", "foo-0"], regex=False)
 
         expected = pd.DataFrame(columns=["foo-0", "foo-1", "bar", "bartoo"],
-                            data=[[2.2, 2.1, "a", "b"], [3.2, 3.1, "c", "d"]])
+                                data=[[2.2, 2.1, "a", "b"], [3.2, 3.1, "c", "d"]])
         sut = GroupFrame()
 
         for name, file_type in self.supported_file_types.items():
             with self.subTest(name):
-                file_type.save_method(expected, file_type.filename, index=False)
+                file_type.save_method(expected, file_type.filename(), index=False)
                 # assert
                 with self.assertRaises(ColumnGroupException):
                     # act
-                    file_type.read_method(sut, file_type.filename)
+                    file_type.read_method(sut, file_type.filename())
 
     def test_should_allow_conflicting_column_groups_if_greedy(self):
         # arrange
         class GroupFrame(BaseFrame):
-            foo = ColumnGroup(type=float, members=["foo-\d+", "bar"], regex=True)
-            bar = ColumnGroup(type=str, members=["bar", "bartoo"], regex=False)
+            foo = ColumnSet(type=float, members=["foo-\d+", "bar"], regex=True)
+            bar = ColumnSet(type=str, members=["bar", "bartoo"], regex=False)
 
         expected = pd.DataFrame(columns=["foo-0", "foo-1", "bar", "bartoo"],
-                            data=[[2.2, 2.1, "a", "b"], [3.2, 3.1, "c", "d"]])
-        sut = GroupFrame().with_greedy_column_groups()
+                                data=[[2.2, 2.1, "a", "b"], [3.2, 3.1, "c", "d"]])
+        sut = GroupFrame().with_greedy_column_sets()
 
         for name, file_type in self.supported_file_types.items():
             with self.subTest(name):
-                file_type.save_method(expected, file_type.filename, index=False)
+                file_type.save_method(expected, file_type.filename(), index=False)
                 # act
-                result = file_type.read_method(sut, file_type.filename)
+                result = file_type.read_method(sut, file_type.filename())
                 actual = result.to_df()
                 # assert
                 pd.testing.assert_frame_equal(expected, actual)
@@ -266,25 +287,24 @@ class TestBaseFrame(TestCase):
         # arrange
         class GroupFrame(BaseFrame):
             foo = Column(type=float)
-            bar = ColumnGroup(type=str, members=["bar.*"], regex=True)
-            baz = ColumnGroup(type=int, members=["baz-0", "baz-1"], regex=False)
+            bar = ColumnSet(type=str, members=["bar.*"], regex=True)
+            baz = ColumnSet(type=int, members=["baz-0", "baz-1"], regex=False)
 
         expected = pd.DataFrame(columns=["foo", "bar", "bartoo", "baz-0", "baz-1"],
-                            data=[[2.2, "a", "b", 21, 22], [3.2, "c", "d", 31, 32]])
+                                data=[[2.2, "a", "b", 21, 22], [3.2, "c", "d", 31, 32]])
         sut = GroupFrame()
 
         for name, file_type in self.supported_file_types.items():
             with self.subTest(name):
-                file_type.save_method(expected, file_type.filename, index=False)
+                file_type.save_method(expected, file_type.filename(), index=False)
                 # act
-                result = file_type.read_method(sut, file_type.filename)
+                result = file_type.read_method(sut, file_type.filename())
                 actual = result.to_df()
                 # assert
                 pd.testing.assert_frame_equal(expected, actual)
                 pd.testing.assert_series_equal(expected["foo"], result.foo)
                 pd.testing.assert_frame_equal(expected[["bar", "bartoo"]], result.bar)
                 pd.testing.assert_frame_equal(expected[GroupFrame.baz.members], result.baz)
-
 
     def test_should_peek_cols(self):
         # arrange
@@ -308,7 +328,7 @@ class TestBaseFrame(TestCase):
 
         with self.subTest("csv_on_disk"):
             # arrange
-            filename = self.supported_file_types["csv"].filename
+            filename = self.supported_file_types["csv"].filename()
             data.to_csv(filename, index=False)
             # act
             actual_columns = BaseFrame.read_csv_columns(filename)
@@ -332,7 +352,7 @@ class TestBaseFrame(TestCase):
 
         with self.subTest("excel_on_disk"):
             # arrange
-            filename = self.supported_file_types["excel"].filename
+            filename = self.supported_file_types["excel"].filename()
             data.to_excel(filename, index=False)
             # act
             actual_columns = BaseFrame.read_excel_columns(filename)
@@ -355,7 +375,7 @@ class TestBaseFrame(TestCase):
 
         with self.subTest("parquet_on_disk"):
             # arrange
-            filename = self.supported_file_types["parquet"].filename
+            filename = self.supported_file_types["parquet"].filename()
             data.to_parquet(filename, index=False)
             # act
             actual_columns = BaseFrame.read_parquet_columns(filename)
@@ -378,7 +398,7 @@ class TestBaseFrame(TestCase):
 
         with self.subTest("avro_on_disk"):
             # arrange
-            filename = self.supported_file_types["avro"].filename
+            filename = self.supported_file_types["avro"].filename()
             to_avro(data, filename)
             # act
             actual_columns = BaseFrame.read_avro_columns(filename)

@@ -1,8 +1,7 @@
 import datetime
 from pathlib import Path
 
-from pandandic import BaseFrame, Column, ColumnGroup
-from pandandic.group import Group
+from pandandic import BaseFrame, Column, ColumnSet, ColumnGroup
 
 
 class AdvancedFrame(BaseFrame):
@@ -11,13 +10,13 @@ class AdvancedFrame(BaseFrame):
     It can be accessed like an attribute to provide a dataframe view.
     """
     date = Column(type=datetime.date)
-    temperature = ColumnGroup(type=float, members=["temperature-\d+"], regex=True)
-    door_open = ColumnGroup(type=bool, members=["door-open-0", "door-open-1", "door-open-2"], regex=False)
+    temperature = ColumnSet(type=float, members=["temperature-\d+"], regex=True)
+    door_open = ColumnSet(type=bool, members=["door-open-0", "door-open-1", "door-open-2"], regex=False)
     ref = Column(type=int)
     comment = Column(type=str)
 
-    numerical = Group(members=[temperature, ref])
-    time_series = Group(members=[temperature, door_open])
+    numerical = ColumnGroup(members=[temperature, ref])
+    time_series = ColumnGroup(members=[temperature, door_open])
 
 
 df = AdvancedFrame().read_csv(Path(__file__).parent.joinpath("advanced.csv").as_posix())
