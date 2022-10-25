@@ -18,5 +18,5 @@ class TemperatureFrame(BaseFrame):
 
 
 df = TemperatureFrame().read_csv(Path(__file__).parent.joinpath("intermediate.csv").as_posix())
-df.set_index(TemperatureFrame.date.name, inplace=True)
+df.set_index(TemperatureFrame.date.column_name, inplace=True)  # name attribute also works here, but column_name is recommended
 print(df.temperature)

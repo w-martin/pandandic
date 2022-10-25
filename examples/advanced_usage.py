@@ -20,5 +20,5 @@ class AdvancedFrame(BaseFrame):
 
 
 df = AdvancedFrame().read_csv(Path(__file__).parent.joinpath("advanced.csv").as_posix())
-df.set_index(AdvancedFrame.date.name, inplace=True)
+df.set_index(AdvancedFrame.date.column_name, inplace=True)  # name attribute also works here, but column_name is recommended
 print(df.time_series)

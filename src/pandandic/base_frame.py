@@ -11,14 +11,18 @@ import pandas as pd
 from pandas import DataFrame
 
 from .column import Column
-from .column_set import ColumnSet
-from .column_group_exception import ColumnGroupException
+from .column_alias_not_yet_defined_exception import ColumnAliasNotYetDefinedException
 from .column_group import ColumnGroup
+from .column_group_exception import ColumnGroupException
+from .column_set import ColumnSet
+from .column_set_members_not_yet_defined_exception import ColumnSetMembersNotYetDefinedException
+from .defined_later import DefinedLater
 
 if sys.version_info >= (3, 11):
     from typing import Self
 else:
     from typing_extensions import Self
+
 
 
 class BaseFrame(DataFrame):
@@ -41,8 +45,8 @@ class BaseFrame(DataFrame):
         self.greedy_column_sets = False
 
         self._get_column_map()
-        self._get_column_sets()
-        self._get_column_groups()
+        self._get_column_set_map()
+        self._get_column_group_map()
 
         if len(args) > 0 and isinstance(args[0], DataFrame):
             self.from_df(args[0])
@@ -50,22 +54,31 @@ class BaseFrame(DataFrame):
     def __getattribute__(self, item):
         if not item.startswith("_"):
             if self._column_map is not None and item in self._column_map:
-                return self[self._column_map[item].name]
+                column = self._column_map[item]
+                if column.alias == DefinedLater or isinstance(column.alias, DefinedLater):
+                    raise ColumnAliasNotYetDefinedException(column)
+                return self[column.alias or column.name]
+
             if self._column_set_map is not None and item in self._column_set_map:
-                return self[self._column_consumed_map[self._column_set_map[item].name]]
+                column_set = self._column_set_map[item]
+                if column_set.members == DefinedLater or isinstance(column_set.members, DefinedLater):
+                    raise ColumnSetMembersNotYetDefinedException(column_set)
+                return self[self._column_consumed_map[column_set.name]]
+
             if self._column_group_map is not None and item in self._column_group_map:
                 return self[list(itertools.chain.from_iterable(
                     [[column_or_column_group.name]
                      if isinstance(column_or_column_group, Column)
                      else self._column_consumed_map[column_or_column_group.name]
                      for column_or_column_group in self._column_group_map[item].members]))]
+
         return super().__getattribute__(item)
 
     def to_df(self) -> DataFrame:
         return DataFrame(self)
 
-    def with_enforced_types(self, validate: bool = True) -> Self:
-        self.enforce_types = validate
+    def with_enforced_types(self, enforce_types: bool = True) -> Self:
+        self.enforce_types = enforce_types
         return self
 
     def with_enforced_columns(self, enforce_typed_columns: bool = True) -> Self:
@@ -80,7 +93,7 @@ class BaseFrame(DataFrame):
         self.greedy_column_sets = greedy_column_sets
         return self
 
-    def read_csv(self, *args, **kwargs) -> DataFrame:
+    def read_csv(self, *args, **kwargs) -> Self:
         if self.enforce_columns or self.enforce_types:
             columns = self.read_csv_columns(*args, **kwargs)
             column_map = self._compute_column_map(columns)
@@ -99,7 +112,7 @@ class BaseFrame(DataFrame):
         super().__init__(df)
         return self
 
-    def read_excel(self, *args, **kwargs) -> DataFrame:
+    def read_excel(self, *args, **kwargs) -> Self:
         if self.enforce_columns or self.enforce_types:
             columns = self.read_excel_columns(*args, **kwargs)
             column_map = self._compute_column_map(columns)
@@ -118,7 +131,7 @@ class BaseFrame(DataFrame):
         super().__init__(df)
         return self
 
-    def read_parquet(self, *args, **kwargs) -> DataFrame:
+    def read_parquet(self, *args, **kwargs) -> Self:
         columns = self.read_parquet_columns(*args, **kwargs)
         column_map = self._compute_column_map(columns)
 
@@ -135,7 +148,7 @@ class BaseFrame(DataFrame):
         super().__init__(df)
         return self
 
-    def read_avro(self, *args, **kwargs) -> DataFrame:
+    def read_avro(self, *args, **kwargs) -> Self:
         from pandavro import read_avro
 
         columns = self.read_avro_columns(*args, **kwargs)
@@ -154,7 +167,7 @@ class BaseFrame(DataFrame):
         super().__init__(df)
         return self
 
-    def from_df(self, df) -> DataFrame:
+    def from_df(self, df) -> Self:
         df = df.copy()
 
         columns = df.columns.tolist()
@@ -175,16 +188,23 @@ class BaseFrame(DataFrame):
     def _compute_column_map(self, columns: List[str]) -> Dict[str, type]:
         self._column_consumed_map.clear()
 
-        key_column_map = {column.name: column for column in self._get_column_map().values()}
+        key_column_map = {(column.alias or column.name): column for column in self._get_column_map().values()}
+        for alias, column in key_column_map.items():
+            if alias == DefinedLater or isinstance(alias, DefinedLater):
+                raise ColumnAliasNotYetDefinedException(column)
 
-        if len(self._get_column_sets()) == 0:
+        if len(self._get_column_set_map()) == 0:
             return {k: v.type for k, v in key_column_map.items()}
 
         column_bag = np.array([key_column_map[c] if c in key_column_map else None for c in columns])
         consumed_columns = ~np.equal(column_bag, None)
 
-        exact_column_sets = list(filter(lambda column_set: not column_set.regex, self._get_column_sets().values()))
-        regex_column_sets = list(filter(lambda column_set: column_set.regex, self._get_column_sets().values()))
+        for key, column_set in self._get_column_set_map().items():
+            if column_set.members == DefinedLater or isinstance(column_set.members, DefinedLater):
+                raise ColumnSetMembersNotYetDefinedException(column_set)
+
+        exact_column_sets = list(filter(lambda column_set: not column_set.regex, self._get_column_set_map().values()))
+        regex_column_sets = list(filter(lambda column_set: column_set.regex, self._get_column_set_map().values()))
 
         for i, column in enumerate(columns):
             for column_set in exact_column_sets:
@@ -233,7 +253,7 @@ class BaseFrame(DataFrame):
     @staticmethod
     def _type_is_not_any(column_type_tuple: Tuple[str, type]) -> bool:
         _, t = column_type_tuple
-        return t is not Any
+        return t not in (Any, None)
 
     @staticmethod
     def _type_is_date(column_type_tuple: Tuple[str, type]) -> bool:
@@ -297,13 +317,13 @@ class BaseFrame(DataFrame):
         return cls._column_map
 
     @classmethod
-    def _get_column_sets(cls) -> Dict[str, ColumnSet]:
+    def _get_column_set_map(cls) -> Dict[str, ColumnSet]:
         if cls._column_set_map is None:
             cls._column_set_map = dict(filter(lambda kv: isinstance(kv[1], ColumnSet), cls.__dict__.items()))
         return cls._column_set_map
 
     @classmethod
-    def _get_column_groups(cls) -> Dict[str, ColumnGroup]:
+    def _get_column_group_map(cls) -> Dict[str, ColumnGroup]:
         if cls._column_group_map is None:
             cls._column_group_map = dict(filter(lambda kv: isinstance(kv[1], ColumnGroup), cls.__dict__.items()))
         return cls._column_group_map

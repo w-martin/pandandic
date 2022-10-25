@@ -1,6 +1,6 @@
-# Pandandic
+# pandandic
 
-Pandandic is a library for documenting dataset schemas in code, by inheriting from a base class and assigning attributes for columns and column sets.
+pandandic is a library for documenting dataset schemas in code, by inheriting from a base class and assigning attributes for columns and column sets.
 
 ## Installation
 
@@ -21,6 +21,8 @@ Consider a project that reads data from several datasets, performs some preproce
 The preprocessing must act on certain columns and so the team rightfully add constants in order to perform slicing on the input dataframes.
 Two of these datasets share a column name.
 One of the datasets consists of time series data, and each time the dataset is refreshed the number of columns changes.
+This scenario presents several challenges with how to structure the processing logic in a clear and adaptable manner whilst maintaining clear ownership.
+Here is how `pandandic` helps:
 
 1. **Schema ownership**: with `pandandic`, each schema has a corresponding class.
 2. **Shared variables**: with `pandandic`, there are no shared constants. Each `BaseFrame` subclass is responsible for its own schema.
@@ -37,7 +39,6 @@ For both: `pip install pandandic[all]`, `poetry add "pandandic[all]"`
 ## What Doesn't It Do?
 
 * **Validation**, save for what is built in to pandas. For validation of defined types, please see other libraries such as pandera, dataenforce, strictly-typed-pandas (apologies for any I have missed).
-* **Aliasing**: if columns should have different names, it shouldn't be the job of the schema to achieve that; this could lead to unclear behaviour and that's not what we want. Although, some degree of aliasing can be achieved through `ColumnGroup`, it isn't recommended.
 * **Appending columns**: if columns are appended to the object after calling `read_x` or `from_df` that should be captured by a `ColumnSet`, they won't be captured. This can be solved by transforming to a dataframe and back again with `to_df` and `from_df` respectively.
 * **Dask**: although support may be added in future.
 
@@ -105,7 +106,7 @@ class TemperatureFrame(BaseFrame):
 
 
 df = TemperatureFrame().read_csv("intermediate.csv")
-df.set_index(TemperatureFrame.date.name, inplace=True)
+df.set_index(TemperatureFrame.date.column_name, inplace=True)  # name attribute also works here, but column_name is recommended
 print(df.temperature)
 
 ```
@@ -129,6 +130,7 @@ This can be done as well with non-regex `ColumnSet`, in that case accessing the 
 import datetime
 from pandandic import BaseFrame, Column, ColumnSet, ColumnGroup
 
+
 class AdvancedFrame(BaseFrame):
     """
     A Group can be used to group together multiple column groups and columns.
@@ -143,12 +145,48 @@ class AdvancedFrame(BaseFrame):
     numerical = ColumnGroup(members=[temperature, ref])
     time_series = ColumnGroup(members=[temperature, door_open])
 
+
 df = AdvancedFrame().read_csv("advanced.csv")
-df.set_index(AdvancedFrame.date.name, inplace=True)
+df.set_index(AdvancedFrame.date.column_name, inplace=True)  # name attribute also works here, but column_name is recommended
 print(df.time_series)
 ```
 
 `ColumnGroup` and `ColumnSet` attributes can be accessed on the instantiated object, and will return a `DataFrame` view of their members.
+
+```python
+# examples/expert_usage.py
+import datetime
+
+from pandandic import BaseFrame, Column, ColumnSet, ColumnGroup, DefinedLater
+
+
+class ExpertFrame(BaseFrame):
+    """
+    Aliasing can be used to dynamically set columns or column set members at runtime.
+    """
+    date = Column(type=datetime.date, alias=DefinedLater)
+    metadata = ColumnSet(members=DefinedLater)
+
+    temperature = ColumnSet(type=float, members=["temperature-\d+"], regex=True)
+    door_open = ColumnSet(type=bool, members=["door-open-0", "door-open-1", "door-open-2"], regex=False)
+
+    time_series = ColumnGroup(members=[temperature, door_open])
+
+
+# anything DefinedLater MUST be set before ExpertFrame reads or accesses a Column or ColumnSet via attribute
+ExpertFrame.date.alias = "date"
+ExpertFrame.metadata.members = ["comment", "ref"]
+
+df = ExpertFrame().read_csv("advanced.csv")
+df.set_index(ExpertFrame.date.column_name, inplace=True)  # now sets index with the defined alias
+print(df.metadata)
+
+```
+
+`Column` alias can be set as `DefinedLater` to clearly document that it is set dynamically at runtime. 
+The same is possible for `ColumnSet` members. This has the benefit of adding a runtime check that the alias or members are set before being used.
+
+**Warning**: If a `Column` alias is set, it will be used **regardless** of whether it exists in the data or not. 
 
 ## Class Diagram
 

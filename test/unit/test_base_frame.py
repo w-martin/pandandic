@@ -9,9 +9,11 @@ import numpy as np
 import pandas as pd
 from pandas import DataFrame
 
-from pandandic import BaseFrame, ColumnSet
+from pandandic import BaseFrame, ColumnSet, DefinedLater
 from pandandic import Column
+from pandandic.column_alias_not_yet_defined_exception import ColumnAliasNotYetDefinedException
 from pandandic.column_group_exception import ColumnGroupException
+from pandandic.column_set_members_not_yet_defined_exception import ColumnSetMembersNotYetDefinedException
 
 
 class FooBarFrame(BaseFrame):
@@ -406,3 +408,128 @@ class TestBaseFrame(TestCase):
             # assert
             self.assertListEqual(expected_columns, actual_columns)
             pd.testing.assert_frame_equal(expected_data, actual_data)
+
+    def test_should_read_dynamic_column(self):
+        # arrange
+        class DynamicColumnFrame(BaseFrame):
+            foo = Column(type=int)
+            bar = Column()
+
+        foo_column_name = "foob"
+        bar_column_name = "barb"
+
+        data = pd.DataFrame(
+            columns=[foo_column_name, bar_column_name],
+            data=[
+                [20, "baz"],
+                [21, "17.5"],
+                [21, "36"],
+            ]
+        )
+        sut = DynamicColumnFrame()
+        DynamicColumnFrame.foo.alias = foo_column_name
+        DynamicColumnFrame.bar.alias = bar_column_name
+
+        for name, file_type in self.supported_file_types.items():
+            with self.subTest(name):
+                file_type.save_method(data, file_type.filename(), index=False)
+                # act
+                result = file_type.read_method(sut, file_type.filename())
+                actual = result.to_df()
+                # assert
+                pd.testing.assert_frame_equal(data, actual)
+                pd.testing.assert_series_equal(data[foo_column_name], result.foo)
+                pd.testing.assert_series_equal(data[bar_column_name], result.bar)
+
+    def test_should_raise_if_column_not_defined_yet(self):
+        # arrange
+        class DynamicColumnFrame(BaseFrame):
+            foo = Column(alias=DefinedLater)
+
+        foo_column_name = "foob"
+        bar_column_name = "barb"
+
+        data = pd.DataFrame(
+            columns=[foo_column_name, bar_column_name],
+            data=[
+                [20, "baz"],
+                [21, "17.5"],
+                [21, "36"],
+            ]
+        )
+        sut = DynamicColumnFrame()
+
+        for name, file_type in self.supported_file_types.items():
+            with self.subTest(name):
+                file_type.save_method(data, file_type.filename(), index=False)
+                # assert
+                with self.assertRaises(ColumnAliasNotYetDefinedException):
+                    # act
+                    file_type.read_method(sut, file_type.filename())
+                # assert
+                with self.assertRaises(ColumnAliasNotYetDefinedException):
+                    # act
+                    _ = sut.foo
+
+    def test_should_read_dynamic_column_set(self):
+        # arrange
+        class DynamicColumnFrame(BaseFrame):
+            foo = ColumnSet(members=DefinedLater)
+            bar = ColumnSet(type=int, members=DefinedLater)
+
+        foo_column_names = ["foob", "fooc", "food"]
+        bar_column_names = ["barb", "barc"]
+
+        data = pd.DataFrame(
+            columns=foo_column_names + bar_column_names,
+            data=[
+                [20, "baz", 1, 2, 3],
+                [21, "17.5", 1, 2, 3],
+                [21, "36", 1, 2, 3],
+            ]
+        )
+        sut = DynamicColumnFrame()
+        DynamicColumnFrame.foo.members = foo_column_names
+        DynamicColumnFrame.bar.members = bar_column_names
+
+        for name, file_type in self.supported_file_types.items():
+            with self.subTest(name):
+                file_type.save_method(data, file_type.filename(), index=False)
+                # act
+                result = file_type.read_method(sut, file_type.filename())
+                actual = result.to_df()
+                # assert
+                pd.testing.assert_frame_equal(data, actual)
+                pd.testing.assert_frame_equal(data[foo_column_names], result.foo)
+                pd.testing.assert_frame_equal(data[bar_column_names], result.bar)
+
+    def test_should_raise_if_column_set_not_defined_yet(self):
+        # arrange
+        class DynamicColumnFrame(BaseFrame):
+            foo = ColumnSet(members=DefinedLater)
+            bar = ColumnSet(type=int, members=DefinedLater)
+
+        foo_column_names = ["foob", "fooc", "food"]
+        bar_column_names = ["barb", "barc"]
+
+        data = pd.DataFrame(
+            columns=foo_column_names + bar_column_names,
+            data=[
+                [20, "baz", 1, 2, 3],
+                [21, "17.5", 1, 2, 3],
+                [21, "36", 1, 2, 3],
+            ]
+        )
+        sut = DynamicColumnFrame()
+
+        for name, file_type in self.supported_file_types.items():
+            with self.subTest(name):
+                file_type.save_method(data, file_type.filename(), index=False)
+                # assert
+                with self.assertRaises(ColumnSetMembersNotYetDefinedException):
+                    # act
+                    file_type.read_method(sut, file_type.filename())
+                # assert
+                with self.assertRaises(ColumnSetMembersNotYetDefinedException):
+                    # act
+                    _ = sut.foo
