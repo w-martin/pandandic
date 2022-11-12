@@ -24,7 +24,6 @@ else:
     from typing_extensions import Self
 
 
-
 class BaseFrame(DataFrame):
     """
     Enabled schema-in-code through subclassing of DataFrame.
@@ -63,7 +62,10 @@ class BaseFrame(DataFrame):
                 column_set = self._column_set_map[item]
                 if column_set.members == DefinedLater or isinstance(column_set.members, DefinedLater):
                     raise ColumnSetMembersNotYetDefinedException(column_set)
-                return self[self._column_consumed_map[column_set.name]]
+                consumed_cols = self._column_consumed_map[column_set.name]
+                if not column_set.regex:
+                    consumed_cols = [c for c in column_set.members if c in consumed_cols]
+                return self[consumed_cols]
 
             if self._column_group_map is not None and item in self._column_group_map:
                 return self[list(itertools.chain.from_iterable(

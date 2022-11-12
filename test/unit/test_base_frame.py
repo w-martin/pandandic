@@ -533,3 +533,26 @@ class TestBaseFrame(TestCase):
                 with self.assertRaises(ColumnSetMembersNotYetDefinedException):
                     # act
                     _ = sut.foo
+
+    def test_should_enforce_column_set_column_order_when_accessed_by_attribute(self):
+        # arrange
+
+        class OrderedGroupFrame(BaseFrame):
+            foo = Column(type=float)
+            bar = ColumnSet(type=str, members=["bar.*"], regex=True)
+            baz = ColumnSet(type=int, members=["baz-0", "baz-1"], regex=False)
+
+        expected = pd.DataFrame(columns=["foo", "bar", "bartoo", "baz-1", "baz-0"],
+                                data=[[2.2, "a", "b", 21, 22],
+                                      [3.2, "c", "d", 31, 32]])
+
+        sut = OrderedGroupFrame()
+
+        for name, file_type in self.supported_file_types.items():
+            with self.subTest(name):
+                file_type.save_method(expected, file_type.filename(), index=False)
+                # act
+                result = file_type.read_method(sut, file_type.filename())
+                # assert
+                pd.testing.assert_frame_equal(expected[OrderedGroupFrame.baz.members], result.baz)
+
