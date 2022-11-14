@@ -69,7 +69,7 @@ class BaseFrame(DataFrame):
 
             if self._column_group_map is not None and item in self._column_group_map:
                 return self[list(itertools.chain.from_iterable(
-                    [[column_or_column_group.name]
+                    [[column_or_column_group.alias or column_or_column_group.name]
                      if isinstance(column_or_column_group, Column)
                      else self._column_consumed_map[column_or_column_group.name]
                      for column_or_column_group in self._column_group_map[item].members]))]
