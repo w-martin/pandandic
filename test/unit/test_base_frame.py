@@ -9,7 +9,7 @@ import numpy as np
 import pandas as pd
 from pandas import DataFrame
 
-from pandandic import BaseFrame, ColumnSet, DefinedLater
+from pandandic import BaseFrame, ColumnSet, DefinedLater, ColumnGroup
 from pandandic import Column
 from pandandic.column_alias_not_yet_defined_exception import ColumnAliasNotYetDefinedException
 from pandandic.column_group_exception import ColumnGroupException
@@ -556,3 +556,26 @@ class TestBaseFrame(TestCase):
                 # assert
                 pd.testing.assert_frame_equal(expected[OrderedGroupFrame.baz.members], result.baz)
 
+    def test_should_use_column_alias_within_column_group(self):
+        # arrange
+
+        class AliasColumInGroupFrame(BaseFrame):
+            foo = Column(type=float)
+            bar = Column(alias='rab')
+            baz = Column(type=str)
+            spam = ColumnGroup(members=[bar, baz])
+
+        expected = pd.DataFrame(columns=["foo", "rab", "baz"],
+                                data=[[2.2, "a", "b"],
+                                      [3.2, "c", "d"]])
+
+        sut = AliasColumInGroupFrame()
+
+        for name, file_type in self.supported_file_types.items():
+            with self.subTest(name):
+                file_type.save_method(expected, file_type.filename(), index=False)
+                # act
+                result = file_type.read_method(sut, file_type.filename())
+                # assert
+                pd.testing.assert_frame_equal(expected[[AliasColumInGroupFrame.bar.alias,
+                                                       AliasColumInGroupFrame.baz.name]], result.spam)
