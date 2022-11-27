@@ -9,15 +9,13 @@ import numpy as np
 import pandas as pd
 from pandas import DataFrame
 
-from pandandic import BaseFrame, ColumnSet, DefinedLater, ColumnGroup
+from pandandic import BaseSchema, ColumnSet, DefinedLater, ColumnGroup
 from pandandic import Column
-from pandandic.column_alias_not_yet_defined_exception import ColumnAliasNotYetDefinedException
 from pandandic.column_group_exception import ColumnGroupException
-from pandandic.column_set_members_not_yet_defined_exception import ColumnSetMembersNotYetDefinedException
 from test.common.avro_helper import to_avro
 
 
-class FooBarFrame(BaseFrame):
+class FooBarSchema(BaseSchema):
     foo = Column(type=str)
     bar = Column(type=int)
 
@@ -47,17 +45,17 @@ def to_df(df, *args, **kwargs):
     store.set_df_in_flight(df)
 
 
-class TestBaseFrame(TestCase):
+class TestBaseSchema(TestCase):
     supported_file_types = {
-        "csv": SupportedFileType(read_method=BaseFrame.from_csv, save_method=DataFrame.to_csv,
+        "csv": SupportedFileType(read_method=BaseSchema.read_csv, save_method=DataFrame.to_csv,
                                  filename=lambda: "tmp.csv"),
-        "excel": SupportedFileType(read_method=BaseFrame.from_excel, save_method=DataFrame.to_excel,
+        "excel": SupportedFileType(read_method=BaseSchema.read_excel, save_method=DataFrame.to_excel,
                                    filename=lambda: "tmp.xlsx"),
-        "parquet": SupportedFileType(read_method=BaseFrame.from_parquet, save_method=DataFrame.to_parquet,
+        "parquet": SupportedFileType(read_method=BaseSchema.read_parquet, save_method=DataFrame.to_parquet,
                                      filename=lambda: "tmp.parquet"),
-        "avro": SupportedFileType(read_method=BaseFrame.from_avro, save_method=to_avro,
+        "avro": SupportedFileType(read_method=BaseSchema.read_avro, save_method=to_avro,
                                   filename=lambda: "tmp.avro"),
-        "df": SupportedFileType(read_method=BaseFrame.from_df, save_method=to_df,
+        "df": SupportedFileType(read_method=BaseSchema.apply, save_method=to_df,
                                 filename=store.get_df_in_flight)
     }
 
@@ -71,7 +69,7 @@ class TestBaseFrame(TestCase):
 
     def test_should_get_typed_columns(self):
         # arrange
-        sut = FooBarFrame
+        sut = FooBarSchema
         expected = {
             "foo": Column(type=str),
             "bar": Column(type=int)
@@ -84,12 +82,12 @@ class TestBaseFrame(TestCase):
     def test_should_read(self):
         # arrange
         expected = pd.DataFrame(columns=["foo", "bar"], data=[["one", 1], ["two", 2]])
-        sut = FooBarFrame()
+        sut = FooBarSchema()
         for name, file_type in self.supported_file_types.items():
             with self.subTest(name):
                 file_type.save_method(expected, file_type.filename(), index=False)
                 # act
-                actual = file_type.read_method(sut, file_type.filename()).to_df()
+                actual = file_type.read_method(sut, file_type.filename())
                 # assert
                 pd.testing.assert_frame_equal(expected, actual)
 
@@ -97,24 +95,24 @@ class TestBaseFrame(TestCase):
         # arrange
         data = pd.DataFrame(columns=["foo", "bar", "baz"], data=[["one", 1, None], ["two", 2, None]])
         expected = pd.DataFrame(columns=["foo", "bar"], data=[["one", 1], ["two", 2]])
-        sut = FooBarFrame()
+        sut = FooBarSchema()
         for name, file_type in self.supported_file_types.items():
             with self.subTest(name):
                 file_type.save_method(data, file_type.filename(), index=False)
                 # act
-                actual = file_type.read_method(sut, file_type.filename()).to_df()
+                actual = file_type.read_method(sut, file_type.filename())
                 # assert
                 pd.testing.assert_frame_equal(expected, actual)
 
     def test_should_allow_extra_cols(self):
         # arrange
         expected = pd.DataFrame(columns=["foo", "bar", "baz"], data=[["one", 1, np.nan], ["two", 2, np.nan]])
-        sut = FooBarFrame().with_extra_columns_allowed(True)
+        sut = FooBarSchema().with_extra_columns_allowed(True)
         for name, file_type in self.supported_file_types.items():
             with self.subTest(name):
                 file_type.save_method(expected, file_type.filename(), index=False)
                 # act
-                actual = file_type.read_method(sut, file_type.filename()).to_df()
+                actual = file_type.read_method(sut, file_type.filename())
                 # assert
                 columns = list(set(expected.columns.tolist()).union(actual.columns.tolist()))
                 pd.testing.assert_frame_equal(expected[columns], actual[columns])
@@ -128,7 +126,7 @@ class TestBaseFrame(TestCase):
                                 ["three", 3, 3., datetime(1970, 3, 3)],
                             ])
 
-        class SIFDFrame(BaseFrame):
+        class SIFDFrame(BaseSchema):
             strs = Column(type=str)
             ints = Column(type=int)
             floats = Column(type=float)
@@ -141,7 +139,7 @@ class TestBaseFrame(TestCase):
                 file_type.save_method(data, file_type.filename(), index=False)
                 expected = data
                 # act
-                actual = file_type.read_method(sut, file_type.filename()).to_df()
+                actual = file_type.read_method(sut, file_type.filename())
                 # assert
                 if str(actual["datetimes"].dtype) == "datetime64[ns, UTC]":
                     expected = data.copy()
@@ -152,7 +150,7 @@ class TestBaseFrame(TestCase):
         # arrange
         data = pd.DataFrame(columns=["foo", "bar"],
                             data=[["one", "two"], ])
-        sut = FooBarFrame().with_enforced_types()
+        sut = FooBarSchema().with_enforced_types()
         for name, file_type in self.supported_file_types.items():
             with self.subTest(name):
                 file_type.save_method(data, file_type.filename(), index=False)
@@ -163,7 +161,7 @@ class TestBaseFrame(TestCase):
 
     def test_should_allow_any_dtype(self):
         # arrange
-        class AnyFrame(BaseFrame):
+        class AnyFrame(BaseSchema):
             foo = Column(type=Any)
             bar = Column(type=object)
 
@@ -177,7 +175,7 @@ class TestBaseFrame(TestCase):
             with self.subTest(name):
                 file_type.save_method(data, file_type.filename(), index=False)
                 # act
-                actual = file_type.read_method(sut, file_type.filename()).to_df()
+                actual = file_type.read_method(sut, file_type.filename())
                 # assert
                 pd.testing.assert_series_equal(data.dtypes, actual.dtypes)
                 actual.loc[:, "bar"] = actual.loc[:, "bar"].astype(float)
@@ -185,7 +183,7 @@ class TestBaseFrame(TestCase):
 
     def test_should_fetch_exact_column_groups(self):
         # arrange
-        class GroupFrame(BaseFrame):
+        class GroupFrame(BaseSchema):
             foo = ColumnSet(type=float, members=["foo-0", "foo-1"])
             bar = ColumnSet(type=str, members=["bar", "bartoo"])
 
@@ -198,15 +196,15 @@ class TestBaseFrame(TestCase):
                 file_type.save_method(expected, file_type.filename(), index=False)
                 # act
                 result = file_type.read_method(sut, file_type.filename())
-                actual = result.to_df()
+                actual = result
                 # assert
                 pd.testing.assert_frame_equal(expected, actual)
-                pd.testing.assert_frame_equal(expected[["foo-0", "foo-1"]], result.foo)
-                pd.testing.assert_frame_equal(expected[GroupFrame.bar.members], result.bar)
+                pd.testing.assert_frame_equal(expected[["foo-0", "foo-1"]], result[sut.foo.columns])
+                pd.testing.assert_frame_equal(expected[GroupFrame.bar.members], result[sut.bar.columns])
 
     def test_should_fetch_regex_column_groups(self):
         # arrange
-        class GroupFrame(BaseFrame):
+        class GroupFrame(BaseSchema):
             foo = ColumnSet(type=float, members=["foo-\d+"], regex=True)
             bar = ColumnSet(type=str, members=["bar*"], regex=True)
 
@@ -219,15 +217,15 @@ class TestBaseFrame(TestCase):
                 file_type.save_method(expected, file_type.filename(), index=False)
                 # act
                 result = file_type.read_method(sut, file_type.filename())
-                actual = result.to_df()
+                actual = result
                 # assert
                 pd.testing.assert_frame_equal(expected, actual)
-                pd.testing.assert_frame_equal(expected[["foo-0", "foo-1"]], result.foo)
-                pd.testing.assert_frame_equal(expected[["bar", "bartoo"]], result.bar)
+                pd.testing.assert_frame_equal(expected[["foo-0", "foo-1"]], result[sut.foo.columns])
+                pd.testing.assert_frame_equal(expected[["bar", "bartoo"]], result[sut.bar.columns])
 
     def test_should_raise_on_conflicting_column_groups(self):
         # arrange
-        class GroupFrame(BaseFrame):
+        class GroupFrame(BaseSchema):
             foo = ColumnSet(type=float, members=["foo-\d+"], regex=True)
             bar = ColumnSet(type=str, members=["bar", "bartoo", "foo-0"], regex=False)
 
@@ -245,7 +243,7 @@ class TestBaseFrame(TestCase):
 
     def test_should_allow_conflicting_column_groups_if_greedy(self):
         # arrange
-        class GroupFrame(BaseFrame):
+        class GroupFrame(BaseSchema):
             foo = ColumnSet(type=float, members=["foo-\d+", "bar"], regex=True)
             bar = ColumnSet(type=str, members=["bar", "bartoo"], regex=False)
 
@@ -258,15 +256,15 @@ class TestBaseFrame(TestCase):
                 file_type.save_method(expected, file_type.filename(), index=False)
                 # act
                 result = file_type.read_method(sut, file_type.filename())
-                actual = result.to_df()
+                actual = result
                 # assert
                 pd.testing.assert_frame_equal(expected, actual)
-                pd.testing.assert_frame_equal(expected[["foo-0", "foo-1"]], result.foo)
-                pd.testing.assert_frame_equal(expected[["bar", "bartoo"]], result.bar)
+                pd.testing.assert_frame_equal(expected[["foo-0", "foo-1"]], result[sut.foo.columns])
+                pd.testing.assert_frame_equal(expected[["bar", "bartoo"]], result[sut.bar.columns])
 
-    def test_should_fetch_columns_and_columnsets(self):
+    def test_should_fetch_columns_and_column_groups(self):
         # arrange
-        class GroupFrame(BaseFrame):
+        class GroupFrame(BaseSchema):
             foo = Column(type=float)
             bar = ColumnSet(type=str, members=["bar.*"], regex=True)
             baz = ColumnSet(type=int, members=["baz-0", "baz-1"], regex=False)
@@ -280,12 +278,12 @@ class TestBaseFrame(TestCase):
                 file_type.save_method(expected, file_type.filename(), index=False)
                 # act
                 result = file_type.read_method(sut, file_type.filename())
-                actual = result.to_df()
+                actual = result
                 # assert
                 pd.testing.assert_frame_equal(expected, actual)
                 pd.testing.assert_series_equal(expected["foo"], result.foo)
-                pd.testing.assert_frame_equal(expected[["bar", "bartoo"]], result.bar)
-                pd.testing.assert_frame_equal(expected[GroupFrame.baz.members], result.baz)
+                pd.testing.assert_frame_equal(expected[["bar", "bartoo"]], result[sut.bar.columns])
+                pd.testing.assert_frame_equal(expected[GroupFrame.baz.members], result[sut.baz.columns])
 
     def test_should_peek_cols(self):
         # arrange
@@ -293,7 +291,7 @@ class TestBaseFrame(TestCase):
         data = pd.DataFrame(columns=expected_columns,
                             data=[["one", 1, np.nan, np.nan], ["two", 2, np.nan, np.nan]])
         expected_data = data[["foo", "bar"]]
-        sut = FooBarFrame().with_extra_columns_allowed(False)
+        sut = FooBarSchema().with_extra_columns_allowed(False)
 
         with self.subTest("csv_in_memory"):
             # arrange
@@ -301,8 +299,8 @@ class TestBaseFrame(TestCase):
             data.to_csv(buffer, index=False)
             buffer.seek(0)
             # act
-            actual_columns = BaseFrame.read_csv_columns(buffer)
-            actual_data = sut.from_csv(buffer).to_df()
+            actual_columns = BaseSchema.read_csv_columns(buffer)
+            actual_data = sut.read_csv(buffer)
             # assert
             self.assertListEqual(expected_columns, actual_columns)
             pd.testing.assert_frame_equal(expected_data, actual_data)
@@ -312,8 +310,8 @@ class TestBaseFrame(TestCase):
             filename = self.supported_file_types["csv"].filename()
             data.to_csv(filename, index=False)
             # act
-            actual_columns = BaseFrame.read_csv_columns(filename)
-            actual_data = sut.from_csv(filename).to_df()
+            actual_columns = BaseSchema.read_csv_columns(filename)
+            actual_data = sut.read_csv(filename)
             # assert
             self.assertListEqual(expected_columns, actual_columns)
             pd.testing.assert_frame_equal(expected_data, actual_data)
@@ -325,8 +323,8 @@ class TestBaseFrame(TestCase):
                 data.to_excel(writer, index=False)
             buffer.seek(0)
             # act
-            actual_columns = BaseFrame.read_excel_columns(buffer, engine='openpyxl')
-            actual_data = sut.from_excel(buffer, engine='openpyxl').to_df()
+            actual_columns = BaseSchema.read_excel_columns(buffer, engine='openpyxl')
+            actual_data = sut.read_excel(buffer, engine='openpyxl')
             # assert
             self.assertListEqual(expected_columns, actual_columns)
             pd.testing.assert_frame_equal(expected_data, actual_data)
@@ -336,8 +334,8 @@ class TestBaseFrame(TestCase):
             filename = self.supported_file_types["excel"].filename()
             data.to_excel(filename, index=False)
             # act
-            actual_columns = BaseFrame.read_excel_columns(filename)
-            actual_data = sut.from_excel(filename).to_df()
+            actual_columns = BaseSchema.read_excel_columns(filename)
+            actual_data = sut.read_excel(filename)
             # assert
             self.assertListEqual(expected_columns, actual_columns)
             pd.testing.assert_frame_equal(expected_data, actual_data)
@@ -348,8 +346,8 @@ class TestBaseFrame(TestCase):
             data.to_parquet(buffer)
             buffer.seek(0)
             # act
-            actual_columns = BaseFrame.read_parquet_columns(buffer)
-            actual_data = sut.from_parquet(buffer).to_df()
+            actual_columns = BaseSchema.read_parquet_columns(buffer)
+            actual_data = sut.read_parquet(buffer)
             # assert
             self.assertListEqual(expected_columns, actual_columns)
             pd.testing.assert_frame_equal(expected_data, actual_data)
@@ -359,8 +357,8 @@ class TestBaseFrame(TestCase):
             filename = self.supported_file_types["parquet"].filename()
             data.to_parquet(filename, index=False)
             # act
-            actual_columns = BaseFrame.read_parquet_columns(filename)
-            actual_data = sut.from_parquet(filename).to_df()
+            actual_columns = BaseSchema.read_parquet_columns(filename)
+            actual_data = sut.read_parquet(filename)
             # assert
             self.assertListEqual(expected_columns, actual_columns)
             pd.testing.assert_frame_equal(expected_data, actual_data)
@@ -371,8 +369,8 @@ class TestBaseFrame(TestCase):
             to_avro(data, buffer)
             buffer.seek(0)
             # act
-            actual_columns = BaseFrame.read_avro_columns(buffer)
-            actual_data = sut.from_avro(buffer).to_df()
+            actual_columns = BaseSchema.read_avro_columns(buffer)
+            actual_data = sut.read_avro(buffer)
             # assert
             self.assertListEqual(expected_columns, actual_columns)
             pd.testing.assert_frame_equal(expected_data, actual_data)
@@ -382,15 +380,15 @@ class TestBaseFrame(TestCase):
             filename = self.supported_file_types["avro"].filename()
             to_avro(data, filename)
             # act
-            actual_columns = BaseFrame.read_avro_columns(filename)
-            actual_data = sut.from_avro(filename).to_df()
+            actual_columns = BaseSchema.read_avro_columns(filename)
+            actual_data = sut.read_avro(filename)
             # assert
             self.assertListEqual(expected_columns, actual_columns)
             pd.testing.assert_frame_equal(expected_data, actual_data)
 
     def test_should_read_dynamic_column(self):
         # arrange
-        class DynamicColumnFrame(BaseFrame):
+        class DynamicColumnFrame(BaseSchema):
             foo = Column(type=int)
             bar = Column()
 
@@ -414,45 +412,15 @@ class TestBaseFrame(TestCase):
                 file_type.save_method(data, file_type.filename(), index=False)
                 # act
                 result = file_type.read_method(sut, file_type.filename())
-                actual = result.to_df()
+                actual = result
                 # assert
                 pd.testing.assert_frame_equal(data, actual)
-                pd.testing.assert_series_equal(data[foo_column_name], result.foo)
-                pd.testing.assert_series_equal(data[bar_column_name], result.bar)
-
-    def test_should_raise_if_column_not_defined_yet(self):
-        # arrange
-        class DynamicColumnFrame(BaseFrame):
-            foo = Column(alias=DefinedLater)
-
-        foo_column_name = "foob"
-        bar_column_name = "barb"
-
-        data = pd.DataFrame(
-            columns=[foo_column_name, bar_column_name],
-            data=[
-                [20, "baz"],
-                [21, "17.5"],
-                [21, "36"],
-            ]
-        )
-        sut = DynamicColumnFrame()
-
-        for name, file_type in self.supported_file_types.items():
-            with self.subTest(name):
-                file_type.save_method(data, file_type.filename(), index=False)
-                # assert
-                with self.assertRaises(ColumnAliasNotYetDefinedException):
-                    # act
-                    file_type.read_method(sut, file_type.filename())
-                # assert
-                with self.assertRaises(ColumnAliasNotYetDefinedException):
-                    # act
-                    _ = sut.foo
+                pd.testing.assert_series_equal(data[foo_column_name], result[sut.foo.column_name])
+                pd.testing.assert_series_equal(data[bar_column_name], result[sut.bar.column_name])
 
     def test_should_read_dynamic_column_set(self):
         # arrange
-        class DynamicColumnFrame(BaseFrame):
+        class DynamicColumnFrame(BaseSchema):
             foo = ColumnSet(members=DefinedLater)
             bar = ColumnSet(type=int, members=DefinedLater)
 
@@ -476,47 +444,16 @@ class TestBaseFrame(TestCase):
                 file_type.save_method(data, file_type.filename(), index=False)
                 # act
                 result = file_type.read_method(sut, file_type.filename())
-                actual = result.to_df()
+                actual = result
                 # assert
                 pd.testing.assert_frame_equal(data, actual)
-                pd.testing.assert_frame_equal(data[foo_column_names], result.foo)
-                pd.testing.assert_frame_equal(data[bar_column_names], result.bar)
-
-    def test_should_raise_if_column_set_not_defined_yet(self):
-        # arrange
-        class DynamicColumnFrame(BaseFrame):
-            foo = ColumnSet(members=DefinedLater)
-            bar = ColumnSet(type=int, members=DefinedLater)
-
-        foo_column_names = ["foob", "fooc", "food"]
-        bar_column_names = ["barb", "barc"]
-
-        data = pd.DataFrame(
-            columns=foo_column_names + bar_column_names,
-            data=[
-                [20, "baz", 1, 2, 3],
-                [21, "17.5", 1, 2, 3],
-                [21, "36", 1, 2, 3],
-            ]
-        )
-        sut = DynamicColumnFrame()
-
-        for name, file_type in self.supported_file_types.items():
-            with self.subTest(name):
-                file_type.save_method(data, file_type.filename(), index=False)
-                # assert
-                with self.assertRaises(ColumnSetMembersNotYetDefinedException):
-                    # act
-                    file_type.read_method(sut, file_type.filename())
-                # assert
-                with self.assertRaises(ColumnSetMembersNotYetDefinedException):
-                    # act
-                    _ = sut.foo
+                pd.testing.assert_frame_equal(data[foo_column_names], result[sut.foo.columns])
+                pd.testing.assert_frame_equal(data[bar_column_names], result[sut.bar.columns])
 
     def test_should_enforce_column_set_column_order_when_accessed_by_attribute(self):
         # arrange
 
-        class OrderedGroupFrame(BaseFrame):
+        class OrderedGroupFrame(BaseSchema):
             foo = Column(type=float)
             bar = ColumnSet(type=str, members=["bar.*"], regex=True)
             baz = ColumnSet(type=int, members=["baz-0", "baz-1"], regex=False)
@@ -534,38 +471,12 @@ class TestBaseFrame(TestCase):
                 # act
                 result = file_type.read_method(sut, file_type.filename())
                 # assert
-                pd.testing.assert_frame_equal(expected, result.baz)
+                pd.testing.assert_frame_equal(expected, result[sut.baz.columns])
 
-    def test_should_access_columngroup_as_slice(self):
-        # arrange
-        class ColumnGroupFrame(BaseFrame):
-            foo = Column(type=str)
-            bar = ColumnSet(members=["bar", "baz"], type=int)
-            foobar = ColumnGroup(members=[foo, bar])
-
-        data = pd.DataFrame(
-            columns=["foo", "bar", "baz"],
-            data=[
-                ["0", 1, 3],
-                ["1", 2, 4]
-            ]
-        )
-        sut = ColumnGroupFrame()
-        # act
-        for name, file_type in self.supported_file_types.items():
-            with self.subTest(name):
-                file_type.save_method(data, file_type.filename(), index=False)
-                # act
-                result = file_type.read_method(sut, file_type.filename())
-                # assert
-                pd.testing.assert_series_equal(data.foo, result.foo)
-                pd.testing.assert_frame_equal(data[["bar", "baz"]], result.bar)
-                pd.testing.assert_frame_equal(data, result.foobar)
-
-    def test_should_use_column_alias_within_columngroup(self):
+    def test_should_use_column_alias_within_column_group(self):
         # arrange
 
-        class AliasColumInGroupFrame(BaseFrame):
+        class AliasColumInGroupFrame(BaseSchema):
             foo = Column(type=float)
             bar = Column(alias='rab')
             baz = Column(type=str)
@@ -584,4 +495,4 @@ class TestBaseFrame(TestCase):
                 # act
                 result = file_type.read_method(sut, file_type.filename())
                 # assert
-                pd.testing.assert_frame_equal(expected, result.barbaz)
+                pd.testing.assert_frame_equal(expected, result[sut.barbaz.columns])

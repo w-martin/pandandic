@@ -1,4 +1,5 @@
 from .base_frame import BaseFrame
+from .base_schema import BaseSchema
 from .column import Column
 from .column_set import ColumnSet
 from .column_group import ColumnGroup

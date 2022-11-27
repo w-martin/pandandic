@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from typing import Type, Any, Optional, Union
 
+from .column_alias_not_yet_defined_exception import ColumnAliasNotYetDefinedException
 from .defined_later import DefinedLater
 
 
@@ -13,5 +14,7 @@ class Column:
         self.name = name
 
     @property
-    def column_name(self) -> Union[str, DefinedLater, DefinedLater.__class__]:
+    def column_name(self) -> str:
+        if self.alias == DefinedLater or isinstance(self.alias, DefinedLater):
+            raise ColumnAliasNotYetDefinedException(self.name)
         return self.alias or self.name

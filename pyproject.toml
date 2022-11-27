@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "pandandic"
-version = "0.2.2"
+version = "0.3.0"
 description = "A typed dataframe helper"
 license = "MIT"
 authors = ["Will Martin <will.st4@gmail.com>"]
@@ -14,6 +14,8 @@ pandas = "^1.2"
 typing_extensions = { version = "^4", python = "<3.11" }
 pyarrow = { version = "^9.0.0", optional = true }
 pandavro = { version = "^1.7.1", optional = true }
+dask = { version = "^2022.1.0", optional = true }
+more-itertools = "^9.0.0"
 
 [tool.poetry.extras]
 avro = ["pandavro"]

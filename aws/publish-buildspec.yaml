@@ -8,7 +8,7 @@ phases:
   install:
     commands:
       - pip3 install awscli pip --upgrade --user
-      - curl -sSL https://install.python-poetry.org | POETRY_VERSION=1.2.1 python3 -
+      - curl -sSL https://install.python-poetry.org | POETRY_VERSION=1.2.2 python3 -
       - export PATH=/root/.local/bin:$PATH
   build:
     commands:
