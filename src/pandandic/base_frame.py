@@ -21,19 +21,6 @@ class BaseFrame(pd.DataFrame, BaseSchema):
         super().__init__(*args, **kwargs)
         BaseSchema.__init__(self)
 
-    def __getattribute__(self, item):
-        if item.startswith("_"):
-            return super().__getattribute__(item)
-
-        item_is_a_column = any(
-            map(lambda m: item in m, filter(None, (self._column_map, self._column_set_map, self._column_group_map))))
-        if item_is_a_column:
-            columns = BaseSchema.get_columns(self, item)
-            if 1 == len(columns):
-                columns = columns[0]
-            return self[columns]
-        return super().__getattribute__(item)
-
     def to_df(self) -> pd.DataFrame:
         return pd.DataFrame(self)
 

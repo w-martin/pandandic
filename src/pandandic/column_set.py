@@ -1,21 +1,37 @@
 from dataclasses import dataclass, field
-from typing import Type, List, Any, Union
+from typing import List, Union
+
+import pandas as pd
 
 from .column_set_members_not_yet_defined_exception import ColumnSetMembersNotYetDefinedException
 from .defined_later import DefinedLater
+from .type_definition import TypeDefinition
 
 
 @dataclass
-class ColumnSet:
-    members: Union[List[str], DefinedLater, DefinedLater.__class__]  # list of columns matched to this set
-    type: Type = Any  # dtype applied to this set
-    regex: bool = False  # enables matching members by regex
+class ColumnSet(TypeDefinition):
+    """
+
+    """
+
+    #: List of columns matched to this set.
+    members: Union[List[str], DefinedLater, DefinedLater.__class__] = DefinedLater
+    regex: bool = False  #: Enables matching members by regex
     _consumed_columns: List[str] = field(default_factory=list)
 
     def __set_name__(self, _, name):
         self.name = name
 
-    def _consume(self, column: str) -> None:
+    def __get__(self, obj, objtype=None):
+        if obj is not None and hasattr(obj, "__getitem__"):
+            return obj[self.columns]
+        else:
+            return self
+
+    def consume_column(self, column: str) -> None:
+        """
+        Consumes the given column.
+        """
         self._consumed_columns.append(column)
 
     def reset(self) -> None:
@@ -28,5 +44,7 @@ class ColumnSet:
 
         if self.regex:
             return self._consumed_columns
-        else:
+        elif len(self._consumed_columns):
             return list(filter(self._consumed_columns.__contains__, self.members))
+        else:
+            return self.members

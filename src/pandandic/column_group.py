@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from typing import List, Union
 
+import pandas as pd
 from more_itertools import flatten
 
 from .column import Column
@@ -13,6 +14,12 @@ class ColumnGroup:
 
     def __set_name__(self, _, name):
         self.name = name
+
+    def __get__(self, obj, objtype=None):
+        if obj is not None and hasattr(obj, "__getitem__"):
+            return obj[self.columns]
+        else:
+            return self
 
     @property
     def columns(self) -> List[str]:

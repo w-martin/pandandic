@@ -476,7 +476,7 @@ class TestBaseSchema(TestCase):
     def test_should_use_column_alias_within_column_group(self):
         # arrange
 
-        class AliasColumInGroupFrame(BaseSchema):
+        class AliasColumInGroupSchema(BaseSchema):
             foo = Column(type=float)
             bar = Column(alias='rab')
             baz = Column(type=str)
@@ -485,9 +485,9 @@ class TestBaseSchema(TestCase):
         data = pd.DataFrame(columns=["foo", "rab", "baz"],
                             data=[[2.2, "a", "b"],
                                   [3.2, "c", "d"]])
-        expected = data[[AliasColumInGroupFrame.bar.alias, AliasColumInGroupFrame.baz.name]]
+        expected = data[[AliasColumInGroupSchema.bar.alias, AliasColumInGroupSchema.baz.name]]
 
-        sut = AliasColumInGroupFrame()
+        sut = AliasColumInGroupSchema()
 
         for name, file_type in self.supported_file_types.items():
             with self.subTest(name):
@@ -496,3 +496,78 @@ class TestBaseSchema(TestCase):
                 result = file_type.read_method(sut, file_type.filename())
                 # assert
                 pd.testing.assert_frame_equal(expected, result[sut.barbaz.columns])
+
+    def test_should_parse_numbers(self):
+        # arrange
+        data = pd.DataFrame.from_records([
+            {"foo": 1, "bar": "1."},
+            {"foo": 2, "bar": "2."},
+            {"foo": 3, "bar": "3."},
+            {"foo": 4, "bar": "4"},
+        ])
+        expected = pd.DataFrame.from_records([
+            {"foo": "1", "bar": 1},
+            {"foo": "2", "bar": 2},
+            {"foo": "3", "bar": 3},
+            {"foo": "4", "bar": 4},
+        ])
+
+        class TestSchema(BaseSchema):
+            foo = Column(type=str)
+            bar = Column(type=int)
+
+        # act
+        actual = TestSchema().apply(data)
+        # assert
+        pd.testing.assert_frame_equal(expected, actual)
+
+    def test_should_drop_na(self):
+        # arrange
+        data = pd.DataFrame.from_records([
+            {"index": 1, "foo": np.nan, "bar": "1.", "baz1": 1},
+            {"index": 2, "foo": 2, "bar": None, "baz1": 2},
+            {"index": 3, "foo": "3", "bar": "3.", "baz1": 3},
+            {"index": 4, "foo": "4", "bar": "4", "baz1": 4},
+            {"index": 5, "foo": "5", "bar": "5", "baz1": None},
+            {"index": 6, "foo": "6", "bar": "6", "baz1": 6},
+        ]).set_index("index")
+        expected = pd.DataFrame.from_records([
+            {"index": 3, "foo": "3", "bar": "3.", "baz1": 3},
+            {"index": 4, "foo": "4", "bar": "4", "baz1": 4},
+            {"index": 6, "foo": "6", "bar": "6", "baz1": 6},
+        ]).set_index("index")
+
+        class TestSchema(BaseSchema):
+            foo = Column(drop_na=True)
+            bar = Column(drop_na=True)
+            baz = ColumnSet(drop_na=True, type=int, members=[r"baz\d+"], regex=True)
+
+        # act
+        actual = TestSchema().apply(data)
+        # assert
+        pd.testing.assert_frame_equal(expected, actual)
+
+    def test_should_enforce_parse_datetimes(self):
+        # arrange
+        data = pd.DataFrame.from_records([
+            {"foo": 1, "bar": "2022/01/22", "baz0": "2022/02/22", "baz1": "2022/03/22"},
+            {"foo": 2, "bar": "2022/01/23", "baz0": "2022/02/23", "baz1": "2022/03/23"},
+            {"foo": 3, "bar": "2022/01/24", "baz0": "2022/02/24", "baz1": "2022/03/24"},
+            {"foo": 4, "bar": "2022/01/25", "baz0": "2022/02/25", "baz1": "2022/03/25"},
+        ])
+        expected = pd.DataFrame.from_records([
+            {"foo": "1", "bar": datetime(year=2022, month=1, day=22), "baz0": datetime(year=2022, month=2, day=22), "baz1": datetime(year=2022, month=3, day=22)},
+            {"foo": "2", "bar": datetime(year=2022, month=1, day=23), "baz0": datetime(year=2022, month=2, day=23), "baz1": datetime(year=2022, month=3, day=23)},
+            {"foo": "3", "bar": datetime(year=2022, month=1, day=24), "baz0": datetime(year=2022, month=2, day=24), "baz1": datetime(year=2022, month=3, day=24)},
+            {"foo": "4", "bar": datetime(year=2022, month=1, day=25), "baz0": datetime(year=2022, month=2, day=25), "baz1": datetime(year=2022, month=3, day=25)},
+        ])
+
+        class TestSchema(BaseSchema):
+            foo = Column(type=str)
+            bar = Column(type=datetime)
+            baz = ColumnSet(type=datetime, members=["baz\d+"], regex=True)
+
+        # act
+        actual = TestSchema().apply(data)
+        # assert
+        pd.testing.assert_frame_equal(expected, actual)

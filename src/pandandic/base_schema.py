@@ -2,11 +2,14 @@ import re
 import sys
 from copy import deepcopy
 from datetime import datetime, date
-from typing import Dict, Tuple, Any, List, Union
+from numbers import Number
+from typing import Dict, Tuple, Any, List, Union, Callable
 
 import numpy as np
 import pandas as pd
 from more_itertools import consume
+
+from .type_definition import TypeDefinition
 
 try:
     import dask.dataframe as dd
@@ -77,16 +80,26 @@ class BaseSchema:
             column_map = self._compute_column_map(columns)
 
             if self.enforce_columns:
-                allowed_columns = list(column_map.keys())
+                allowed_columns = list(map(self._first, column_map))
                 if self.allow_extra_columns:
                     allowed_columns = list(set(allowed_columns).union(columns))
 
                 kwargs["usecols"] = allowed_columns
 
             if self.enforce_types:
-                self._apply_validation(column_map, kwargs)
+                self._add_validation_kwargs(column_map, kwargs)
 
-        return pd.read_csv(*args, **kwargs)
+            df = pd.read_csv(*args, **kwargs)
+
+            if self.enforce_types:
+                df = self._apply_column_spec(column_map, df)
+        else:
+            df = pd.read_csv(*args, **kwargs)
+        return df
+
+    @staticmethod
+    def _first(pair: Tuple[Any, Any]) -> Any:
+        return pair[0]
 
     def read_excel(self, *args, **kwargs) -> ReturnType:
         if self.enforce_columns or self.enforce_types:
@@ -94,31 +107,37 @@ class BaseSchema:
             column_map = self._compute_column_map(columns)
 
             if self.enforce_columns:
-                allowed_columns = list(column_map.keys())
+                allowed_columns = list(map(self._first, column_map))
                 if self.allow_extra_columns:
                     allowed_columns = list(set(allowed_columns).union(columns))
 
                 kwargs["usecols"] = allowed_columns
 
             if self.enforce_types:
-                self._apply_validation(column_map, kwargs)
+                self._add_validation_kwargs(column_map, kwargs)
 
-        return pd.read_excel(*args, **kwargs)
+            df = pd.read_excel(*args, **kwargs)
+
+            if self.enforce_types:
+                df = self._apply_column_spec(column_map, df)
+        else:
+            df = pd.read_excel(*args, **kwargs)
+        return df
 
     def read_parquet(self, *args, **kwargs) -> ReturnType:
         columns = self.read_parquet_columns(*args, **kwargs)
         column_map = self._compute_column_map(columns)
 
         if self.enforce_columns:
-            allowed_columns = list(column_map.keys())
+            allowed_columns = list(map(self._first, column_map))
             if self.allow_extra_columns:
                 allowed_columns = list(set(allowed_columns).union(columns))
 
             kwargs["columns"] = allowed_columns
 
         df = pd.read_parquet(*args, **kwargs)
-        for column, t in filter(self._type_is_castable, column_map.items()):
-            df.loc[:, column] = df.loc[:, column].astype(t)
+        if self.enforce_types:
+            df = self._apply_column_spec(column_map, df)
         return df
 
     def read_avro(self, *args, **kwargs) -> ReturnType:
@@ -128,15 +147,15 @@ class BaseSchema:
         column_map = self._compute_column_map(columns)
 
         if self.enforce_columns:
-            allowed_columns = list(column_map.keys())
+            allowed_columns = list(map(self._first, column_map))
             if self.allow_extra_columns:
                 allowed_columns = list(set(allowed_columns).union(columns))
 
             kwargs["columns"] = allowed_columns
 
         df = read_avro(*args, **kwargs)
-        for column, t in filter(self._type_is_castable, column_map.items()):
-            df.loc[:, column] = df.loc[:, column].astype(t)
+        if self.enforce_types:
+            df = self._apply_column_spec(column_map, df)
         return df
 
     def apply(self, df) -> pd.DataFrame:
@@ -146,14 +165,34 @@ class BaseSchema:
         column_map = self._compute_column_map(columns)
 
         if self.enforce_columns:
-            allowed_columns = list(column_map.keys())
+            allowed_columns = list(map(self._first, column_map))
             if self.allow_extra_columns:
                 allowed_columns = list(set(allowed_columns).union(columns))
 
             df = df[allowed_columns]
 
-        for column, t in filter(self._type_is_castable, column_map.items()):
-            df.loc[:, column] = df.loc[:, column].astype(t)
+        if self.enforce_types:
+            df = self._apply_column_spec(column_map, df)
+        return df
+
+    def _apply_column_spec(self, columns: List[Tuple[str, TypeDefinition]],
+                           df: pd.DataFrame) -> pd.DataFrame:
+        for column_name, type_definition in columns:
+
+            if type_definition.drop_na:
+                df = df.dropna(subset=[column_name])
+
+            if self._type_is_numeric(type_definition.type):
+                numeric_options = type_definition.numeric_options or {}
+                df[column_name] = pd.to_numeric(df[column_name], **numeric_options)
+                df[column_name] = df[column_name].astype(type_definition.type)
+
+            elif self._type_is_date(type_definition.type):
+                datetime_options = type_definition.datetime_options or {}
+                df[column_name] = pd.to_datetime(df[column_name], **datetime_options)
+
+            elif self._type_is_not_any(type_definition.type):
+                df[column_name] = df[column_name].astype(type_definition.type)
         return df
 
     def get_columns(self, item: str) -> List[str]:
@@ -167,16 +206,17 @@ class BaseSchema:
             return self._column_group_map[item].columns
         return []
 
-    def _compute_column_map(self, columns: List[str]) -> Dict[str, type]:
+    def _compute_column_map(self, columns: List[str]) -> List[Tuple[str, TypeDefinition]]:
         consume(map(lambda cs: cs.reset(), self._column_set_map.values()))
 
-        key_column_map = {(column.alias or column.name): column for column in self._get_column_map().values()}
+        key_column_map = {(column.alias or column.name): column
+                          for column in self._get_column_map().values()}
         for alias, column in key_column_map.items():
             if alias == DefinedLater or isinstance(alias, DefinedLater):
                 raise ColumnAliasNotYetDefinedException(column)
 
         if len(self._get_column_set_map()) == 0:
-            return {k: v.type for k, v in key_column_map.items()}
+            return list(map(tuple, key_column_map.items()))
 
         column_bag = np.array([key_column_map[c] if c in key_column_map else None for c in columns])
         consumed_columns = ~np.equal(column_bag, None)
@@ -197,7 +237,7 @@ class BaseSchema:
                     else:
                         consumed_columns[i] = True
                         column_bag[i] = column_set
-                        self._column_set_map[column_set.name]._consume(column)
+                        self._column_set_map[column_set.name].consume_column(column)
 
             for column_set in regex_column_sets:
                 if any((re.match(member, column) for member in column_set.members)):
@@ -207,44 +247,63 @@ class BaseSchema:
                     else:
                         consumed_columns[i] = True
                         column_bag[i] = column_set
-                        self._column_set_map[column_set.name]._consume(column)
+                        self._column_set_map[column_set.name].consume_column(column)
 
-        result = {columns[i]: column_or_group.type
+        result = {columns[i]: column_or_group
                   for i, column_or_group in
                   filter(lambda ix: ix[1] is not None, enumerate(column_bag))}
         if self.enforce_columns:
             for column_set in exact_column_sets:
                 for column in column_set.members:
                     if column not in result:
-                        result[column] = column_set.type
-        return result
+                        result[column] = column_set
+        return list(map(tuple, result.items()))
 
-    def _apply_validation(self, column_map: Dict[str, type], kwargs: Dict[str, Any]):
+    def _add_validation_kwargs(self, columns: List[Tuple[str, TypeDefinition]], kwargs: Dict[str, Any]):
         kwargs["dtype"] = dict(
-            filter(self._type_is_not_date,
-                   filter(self._type_is_not_any,
-                          column_map.items())))
-        kwargs["parse_dates"] = list(
-            map(lambda t: t[0],
-                filter(self._type_is_date, column_map.items())))
+            map(self._column_type_from_tuple,
+                filter(self._filter_on_type(self._type_is_not_date),
+                   filter(self._filter_on_type(self._type_is_not_any),
+                          columns))))
 
-    @classmethod
-    def _type_is_castable(cls, column_type_tuple: Tuple[str, type]) -> bool:
-        return cls._type_is_not_any(column_type_tuple) and cls._type_is_not_date(column_type_tuple)
+        kwargs["parse_dates"] = list(
+            map(self._column_from_tuple,
+                filter(self._filter_on_type(self._type_is_date),
+                       columns)))
 
     @staticmethod
-    def _type_is_not_any(column_type_tuple: Tuple[str, type]) -> bool:
-        _, t = column_type_tuple
+    def _filter_on_type(f: Callable[[type], bool]) -> Callable[[Tuple[str, type]], bool]:
+        def _apply_given_filter(column_type_tuple: Tuple[str, TypeDefinition]) -> bool:
+            _, type_definition = column_type_tuple
+            return f(type_definition.type)
+
+        return _apply_given_filter
+
+    @staticmethod
+    def _column_from_tuple(column_type_tuple: Tuple[str, TypeDefinition]) -> str:
+        column, _ = column_type_tuple
+        return column
+
+    @staticmethod
+    def _column_type_from_tuple(column_type_tuple: Tuple[str, TypeDefinition]) -> Tuple[str, type]:
+        column, type_definition = column_type_tuple
+        return column, type_definition.type
+
+    @staticmethod
+    def _type_is_not_any(t: type) -> bool:
         return t not in (Any, None)
 
     @staticmethod
-    def _type_is_date(column_type_tuple: Tuple[str, type]) -> bool:
-        _, t = column_type_tuple
+    def _type_is_date(t: type) -> bool:
         return t in (datetime, "datetime", date, "date")
 
     @classmethod
-    def _type_is_not_date(cls, column_type_tuple: Tuple[str, type]) -> bool:
-        return not cls._type_is_date(column_type_tuple)
+    def _type_is_not_date(cls, t: type) -> bool:
+        return not cls._type_is_date(t)
+
+    @staticmethod
+    def _type_is_numeric(t: type) -> bool:
+        return isinstance(t, Number) or t in (int, float, complex)
 
     @staticmethod
     def read_csv_columns(*args, **kwargs) -> list:
