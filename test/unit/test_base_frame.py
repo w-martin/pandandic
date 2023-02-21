@@ -1,4 +1,5 @@
 import os
+import warnings
 from dataclasses import dataclass
 from datetime import datetime
 from io import BytesIO
@@ -60,6 +61,25 @@ class TestBaseFrame(TestCase):
         "df": SupportedFileType(read_method=BaseFrame.from_df, save_method=to_df,
                                 filename=store.get_df_in_flight)
     }
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.warnings_context = warnings.catch_warnings()
+        cls.warnings_context.__enter__()
+
+        # Useful for pandas 1.5
+        warnings.filterwarnings(
+            "ignore",
+            category=Warning,
+            message=(
+                ".*will attempt to set the values inplace instead of always setting a new array. "
+                "To retain the old behavior, use either.*"
+            ),
+        )
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        cls.warnings_context.__exit__(None, None, None)
 
     def setUp(self) -> None:
         self.buffer = BytesIO()

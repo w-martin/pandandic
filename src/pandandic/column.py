@@ -1,8 +1,6 @@
 from dataclasses import dataclass
 from typing import Optional, Union
 
-import pandas as pd
-
 from .column_alias_not_yet_defined_exception import ColumnAliasNotYetDefinedException
 from .defined_later import DefinedLater
 from .type_definition import TypeDefinition

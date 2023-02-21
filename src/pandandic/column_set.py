@@ -1,8 +1,6 @@
 from dataclasses import dataclass, field
 from typing import List, Union
 
-import pandas as pd
-
 from .column_set_members_not_yet_defined_exception import ColumnSetMembersNotYetDefinedException
 from .defined_later import DefinedLater
 from .type_definition import TypeDefinition
@@ -10,9 +8,6 @@ from .type_definition import TypeDefinition
 
 @dataclass
 class ColumnSet(TypeDefinition):
-    """
-
-    """
 
     #: List of columns matched to this set.
     members: Union[List[str], DefinedLater, DefinedLater.__class__] = DefinedLater

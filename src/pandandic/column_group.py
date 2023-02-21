@@ -1,7 +1,6 @@
 from dataclasses import dataclass
 from typing import List, Union
 
-import pandas as pd
 from more_itertools import flatten
 
 from .column import Column

@@ -2,6 +2,7 @@ import re
 import sys
 from copy import deepcopy
 from datetime import datetime, date
+from itertools import filterfalse
 from numbers import Number
 from typing import Dict, Tuple, Any, List, Union, Callable
 
@@ -10,6 +11,10 @@ import pandas as pd
 from more_itertools import consume
 
 from .type_definition import TypeDefinition
+
+COLUMNS = "columns"
+NROWS = "nrows"
+USECOLS = "usecols"
 
 try:
     import dask.dataframe as dd
@@ -84,7 +89,8 @@ class BaseSchema:
                 if self.allow_extra_columns:
                     allowed_columns = list(set(allowed_columns).union(columns))
 
-                kwargs["usecols"] = allowed_columns
+                kwargs = deepcopy(kwargs)
+                kwargs[USECOLS] = allowed_columns
 
             if self.enforce_types:
                 self._add_validation_kwargs(column_map, kwargs)
@@ -111,7 +117,8 @@ class BaseSchema:
                 if self.allow_extra_columns:
                     allowed_columns = list(set(allowed_columns).union(columns))
 
-                kwargs["usecols"] = allowed_columns
+                kwargs = deepcopy(kwargs)
+                kwargs[USECOLS] = allowed_columns
 
             if self.enforce_types:
                 self._add_validation_kwargs(column_map, kwargs)
@@ -133,7 +140,8 @@ class BaseSchema:
             if self.allow_extra_columns:
                 allowed_columns = list(set(allowed_columns).union(columns))
 
-            kwargs["columns"] = allowed_columns
+            kwargs = deepcopy(kwargs)
+            kwargs[COLUMNS] = allowed_columns
 
         df = pd.read_parquet(*args, **kwargs)
         if self.enforce_types:
@@ -151,7 +159,8 @@ class BaseSchema:
             if self.allow_extra_columns:
                 allowed_columns = list(set(allowed_columns).union(columns))
 
-            kwargs["columns"] = allowed_columns
+            kwargs = deepcopy(kwargs)
+            kwargs[COLUMNS] = allowed_columns
 
         df = read_avro(*args, **kwargs)
         if self.enforce_types:
@@ -159,8 +168,6 @@ class BaseSchema:
         return df
 
     def apply(self, df) -> pd.DataFrame:
-        df = df.copy()
-
         columns = df.columns.tolist()
         column_map = self._compute_column_map(columns)
 
@@ -177,6 +184,7 @@ class BaseSchema:
 
     def _apply_column_spec(self, columns: List[Tuple[str, TypeDefinition]],
                            df: pd.DataFrame) -> pd.DataFrame:
+        df = df.copy()
         for column_name, type_definition in columns:
 
             if type_definition.drop_na:
@@ -191,8 +199,8 @@ class BaseSchema:
                 datetime_options = type_definition.datetime_options or {}
                 df[column_name] = pd.to_datetime(df[column_name], **datetime_options)
 
-            elif self._type_is_not_any(type_definition.type):
-                df[column_name] = df[column_name].astype(type_definition.type)
+            elif not self._type_is_any(type_definition.type):
+                df.loc[:, column_name] = df[column_name].astype(type_definition.type)
         return df
 
     def get_columns(self, item: str) -> List[str]:
@@ -207,7 +215,7 @@ class BaseSchema:
         return []
 
     def _compute_column_map(self, columns: List[str]) -> List[Tuple[str, TypeDefinition]]:
-        consume(map(lambda cs: cs.reset(), self._column_set_map.values()))
+        consume(map(lambda column_set_: column_set_.reset(), self._column_set_map.values()))
 
         key_column_map = {(column.alias or column.name): column
                           for column in self._get_column_map().values()}
@@ -225,7 +233,7 @@ class BaseSchema:
             if column_set.members == DefinedLater or isinstance(column_set.members, DefinedLater):
                 raise ColumnSetMembersNotYetDefinedException(column_set)
 
-        exact_column_sets = list(filter(lambda column_set: not column_set.regex, self._get_column_set_map().values()))
+        exact_column_sets = list(filterfalse(lambda column_set: column_set.regex, self._get_column_set_map().values()))
         regex_column_sets = list(filter(lambda column_set: column_set.regex, self._get_column_set_map().values()))
 
         for i, column in enumerate(columns):
@@ -251,7 +259,7 @@ class BaseSchema:
 
         result = {columns[i]: column_or_group
                   for i, column_or_group in
-                  filter(lambda ix: ix[1] is not None, enumerate(column_bag))}
+                  filterfalse(lambda ix: ix[1] is None, enumerate(column_bag))}
         if self.enforce_columns:
             for column_set in exact_column_sets:
                 for column in column_set.members:
@@ -262,12 +270,12 @@ class BaseSchema:
     def _add_validation_kwargs(self, columns: List[Tuple[str, TypeDefinition]], kwargs: Dict[str, Any]):
         kwargs["dtype"] = dict(
             map(self._column_type_from_tuple,
-                filter(self._filter_on_type(self._type_is_not_date),
-                   filter(self._filter_on_type(self._type_is_not_any),
-                          columns))))
+                filterfalse(self._filter_on_type(self._type_is_date),
+                       filterfalse(self._filter_on_type(self._type_is_any),
+                              columns))))
 
         kwargs["parse_dates"] = list(
-            map(self._column_from_tuple,
+            map(self._first,
                 filter(self._filter_on_type(self._type_is_date),
                        columns)))
 
@@ -280,26 +288,17 @@ class BaseSchema:
         return _apply_given_filter
 
     @staticmethod
-    def _column_from_tuple(column_type_tuple: Tuple[str, TypeDefinition]) -> str:
-        column, _ = column_type_tuple
-        return column
-
-    @staticmethod
     def _column_type_from_tuple(column_type_tuple: Tuple[str, TypeDefinition]) -> Tuple[str, type]:
         column, type_definition = column_type_tuple
         return column, type_definition.type
 
     @staticmethod
-    def _type_is_not_any(t: type) -> bool:
-        return t not in (Any, None)
+    def _type_is_any(t: type) -> bool:
+        return t in (Any, None)
 
     @staticmethod
     def _type_is_date(t: type) -> bool:
         return t in (datetime, "datetime", date, "date")
-
-    @classmethod
-    def _type_is_not_date(cls, t: type) -> bool:
-        return not cls._type_is_date(t)
 
     @staticmethod
     def _type_is_numeric(t: type) -> bool:
@@ -308,9 +307,9 @@ class BaseSchema:
     @staticmethod
     def read_csv_columns(*args, **kwargs) -> list:
         header_kwargs = deepcopy(kwargs)
-        header_kwargs["nrows"] = 0
-        if "usecols" in header_kwargs:
-            del header_kwargs["usecols"]
+        header_kwargs[NROWS] = 0
+        if COLUMNS in header_kwargs:
+            del header_kwargs[COLUMNS]
         columns = pd.read_csv(*args, **header_kwargs).columns
         try:
             args[0].seek(0)
@@ -321,9 +320,9 @@ class BaseSchema:
     @staticmethod
     def read_excel_columns(*args, **kwargs) -> list:
         header_kwargs = deepcopy(kwargs)
-        header_kwargs["nrows"] = 0
-        if "usecols" in header_kwargs:
-            del header_kwargs["usecols"]
+        header_kwargs[COLUMNS] = 0
+        if COLUMNS in header_kwargs:
+            del header_kwargs[COLUMNS]
         columns = pd.read_excel(*args, **header_kwargs).columns
         try:
             args[0].seek(0)
@@ -333,6 +332,8 @@ class BaseSchema:
 
     @staticmethod
     def read_parquet_columns(*args, **__) -> list:
+        if isinstance(args[0], str) and args[0].startswith("s3://"):
+            raise NotImplementedError("Reading parquet column from S3 is not yet supported by Pandandic.")
         from pyarrow.parquet import ParquetFile
         pq_file = ParquetFile(args[0])
         columns = pq_file.metadata.schema.names

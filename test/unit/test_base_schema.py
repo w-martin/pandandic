@@ -1,4 +1,5 @@
 import os
+import warnings
 from dataclasses import dataclass
 from datetime import datetime
 from io import BytesIO
@@ -58,6 +59,25 @@ class TestBaseSchema(TestCase):
         "df": SupportedFileType(read_method=BaseSchema.apply, save_method=to_df,
                                 filename=store.get_df_in_flight)
     }
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.warnings_context = warnings.catch_warnings()
+        cls.warnings_context.__enter__()
+
+        # Useful for pandas 1.5
+        warnings.filterwarnings(
+            "ignore",
+            category=Warning,
+            message=(
+                ".*will attempt to set the values inplace instead of always setting a new array. "
+                "To retain the old behavior, use either.*"
+            ),
+        )
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        cls.warnings_context.__exit__(None, None, None)
 
     def setUp(self) -> None:
         self.buffer = BytesIO()
@@ -556,10 +576,14 @@ class TestBaseSchema(TestCase):
             {"foo": 4, "bar": "2022/01/25", "baz0": "2022/02/25", "baz1": "2022/03/25"},
         ])
         expected = pd.DataFrame.from_records([
-            {"foo": "1", "bar": datetime(year=2022, month=1, day=22), "baz0": datetime(year=2022, month=2, day=22), "baz1": datetime(year=2022, month=3, day=22)},
-            {"foo": "2", "bar": datetime(year=2022, month=1, day=23), "baz0": datetime(year=2022, month=2, day=23), "baz1": datetime(year=2022, month=3, day=23)},
-            {"foo": "3", "bar": datetime(year=2022, month=1, day=24), "baz0": datetime(year=2022, month=2, day=24), "baz1": datetime(year=2022, month=3, day=24)},
-            {"foo": "4", "bar": datetime(year=2022, month=1, day=25), "baz0": datetime(year=2022, month=2, day=25), "baz1": datetime(year=2022, month=3, day=25)},
+            {"foo": "1", "bar": datetime(year=2022, month=1, day=22), "baz0": datetime(year=2022, month=2, day=22),
+             "baz1": datetime(year=2022, month=3, day=22)},
+            {"foo": "2", "bar": datetime(year=2022, month=1, day=23), "baz0": datetime(year=2022, month=2, day=23),
+             "baz1": datetime(year=2022, month=3, day=23)},
+            {"foo": "3", "bar": datetime(year=2022, month=1, day=24), "baz0": datetime(year=2022, month=2, day=24),
+             "baz1": datetime(year=2022, month=3, day=24)},
+            {"foo": "4", "bar": datetime(year=2022, month=1, day=25), "baz0": datetime(year=2022, month=2, day=25),
+             "baz1": datetime(year=2022, month=3, day=25)},
         ])
 
         class TestSchema(BaseSchema):
