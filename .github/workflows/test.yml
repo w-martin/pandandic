@@ -13,7 +13,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        fetch-depth: 1  # Shallow clone
+        with:
+          fetch-depth: 1  # Shallow clone
       - name: Install and configure Poetry
         uses: snok/install-poetry@v1
         with:
