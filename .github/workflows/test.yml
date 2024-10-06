@@ -1,0 +1,32 @@
+name: Test
+on: [pull_request]
+jobs:
+  test:
+    strategy:
+      matrix:
+        python-version:
+            - 3.9
+            - 3.10
+            - 3.11
+            - 3.12
+            - 3.13
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        fetch-depth: 1  # Shallow clone
+      - name: Install and configure Poetry
+        uses: snok/install-poetry@v1
+        with:
+          version: 1.8.3
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+          installer-parallel: true
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: poetry
+      - name: Install dependencies
+        run: poetry install --with test --sync --all-extras
+      - name: Run tests
+        run: poetry run python3 -m nose2 -s test -t src
