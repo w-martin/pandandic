@@ -11,7 +11,7 @@ packages = [{ include = "pandandic", from = "src" }]
 [tool.poetry.dependencies]
 python = "^3.9"
 pandas = "^1.2"
-bottleneck = ">=1.4.0"  # pin for pandas = "<2.2.2" & numpy >=2.0.0 issue, affecting 3.9<=python<=3.12
+numpy = ">=1.21.0,<2.0"  # resolved with pandas = "<2.2.2", to be supported in future release
 typing_extensions = { version = "^4", python = "<3.11" }
 pyarrow = { version = ">=14.0.1", optional = true }  # https://github.com/advisories/GHSA-5wvp-7f3h-6wmm
 pandavro = { version = "^1.7.1", optional = true }
