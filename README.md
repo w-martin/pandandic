@@ -1,5 +1,10 @@
 # pandandic
 
+> **⚠️ Deprecated.** `pandandic` is no longer maintained. Its successor is
+> [**typedframes**](https://github.com/w-martin/typedframes) — a Rust-fast linter for pandas and polars DataFrames
+> that catches column errors at lint-time, with the same schema-class approach as `pandandic` plus static analysis
+> and no-schema-required checking. This repository is kept for historical reference and will be archived.
+
 pandandic is a library for documenting dataset schemas in code, by inheriting from a base class and assigning attributes for columns and column sets.
 
 ## Installation
